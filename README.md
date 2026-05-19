@@ -29,7 +29,7 @@ your-repo/
 │   ├── codes/                       R scripts
 │   └── outputs/
 │       ├── figures/                 plots and maps
-│       └── tables/                  tables
+│       └── tables/                  summary tables
 │
 └── DATA/
     ├── raw/                         Input data fed into R (from GEE or other sources)
@@ -48,6 +48,10 @@ always clear which data came from which script:
 | 01 | Soybean / Cotton change detection (GM-enabled crops) |
 | 02 | Three-way crop classification (GM-enabled / Tolerant / Vulnerable) |
 | 03 | Calibration and bias adjustment |
+
+Where two versions of a script exist (e.g. `01` and `01bis`), the `bis` version
+is the methodologically improved one and should be preferred for analysis.
+See the GEE README for details.
 
 ---
 
@@ -73,14 +77,16 @@ always clear which data came from which script:
 
 ## Status
 
-- [x] GEE Script 01 — Agricultural mask + Soy/Cotton change detection at county level for each year (2009-2018)
-- [ ] GEE Script 02 — Three-way crop classification
-- [ ] GEE Script 03 — Calibration and bias adjustment
-- [ ] R Script 01 — Data cleaning
-- [ ] R Script 02 — Statistical analysis
-- [ ] R Script 03 — Figures and tables
+- [x] GEE Script 01 : Agricultural mask + Soy/Cotton change detection at county level (2009–2018), yearly mask
+- [x] GEE Script 01bis : Same as 01 with union mask (methodological improvement, preferred version)
+- [ ] GEE Script 02 : Three-way crop classification
+- [ ] GEE Script 03 : Calibration and bias adjustment
+- [ ] R Script 01 : Data cleaning
+- [ ] R Script 02 : Statistical analysis
+- [ ] R Script 03 : Figures and tables
 
 ---
 
 ## Author
+
 Raphaël Perilhou
