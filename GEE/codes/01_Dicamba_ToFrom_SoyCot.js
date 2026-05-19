@@ -1,4 +1,4 @@
-// Monday 18/09/2026
+//Raw initial code
 var cdls = ee.ImageCollection("USDA/NASS/CDL"); 
 
 /////////////////////////////////
