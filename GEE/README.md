@@ -72,11 +72,11 @@ as cultivated in that specific year to be included. This creates two problems
 identified by Lark et al. (2017):
 
 - **Hidden transitions**: a pixel switching from cropland to non-cropland (or
-  vice versa) is exactly the event we want to capture. A yearly mask filters
+  vice versa) is one of the event we want to capture. A yearly mask filters
   it out instead.
 - **Systematic bias**: the CDL underestimates cultivated area in early years,
   and this bias decreases over time. Yearly masks therefore exclude more pixels
-  in early years simply because the CDL was less complete then — not because
+  in early years simply because the CDL was less complete then and not because
   those pixels were not actually crops. This artificially inflates the
   appearance of cropland expansion, directly distorting change detection results.
 
