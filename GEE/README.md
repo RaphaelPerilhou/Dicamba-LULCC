@@ -93,6 +93,12 @@ var everCultivated = mask2009.or(mask2010).or(mask2011)...or(mask2018);
 This preserves real crop-to-non-crop and non-crop-to-crop transitions while
 still removing permanently non-agricultural pixels.
 
+To determine agricultural status consistently across all years 2009–2018, we manually defined a list of crop codes sourced from USDA NASS metadata (codes 1–61, 66–80, 92, and 200–255; USDA NASS, 2014). We prefer this rather than using the "cultivated" band available post-2012, as it ensure methodological consistency before and after 2012. 
+
+We include Fallow/Idle Cropland (code 61) in the mask because it represents an active agronomic decision within a crop rotation. Conversely, we exclude entirely permanent non-agricultural land covers such as pasture, forest, shrubland, and barren land (codes 62–65).
+
+Then, we classify each pixel into one of four categories for each year. GM-enabled (1) captures soybean, cotton, and all double crops containing at least one GM component. Tolerant (2) captures true cereal crops with registered Dicamba tolerance, including wheat, corn, barley, rye, oats, millet, speltz, triticale, sorghum, and rice, as well as their double crop combinations. Vulnerable (3) captures all remaining agricultural codes in the mask such as other crops, fruits, vegetables, legumes, and managed land covers such as sod and switchgrass. Non-crop (0) captures pixels retained by the union mask that carry a non-agricultural CDL code in a given year (in practice almost exclusively Fallow/Idle Cropland (code 61), which is in the mask as actively managed land but not producing a crop that year. For ambiguous double crops containing components from different categories, a priority rule is applied: GM-enabled > Tolerant > Vulnerable. This ensures each pixel is always assigned to its most resistant component.
+
 **Reference**: Lark, T.J., Mueller, R.M., Johnson, D.M., Gibbs, H.K. (2017).
 Measuring land-use and land-cover change using the U.S. department of
 agriculture's cropland data layer: Cautions and recommendations.
