@@ -31,9 +31,14 @@ your-repo/
 │       ├── figures/                 plots and maps
 │       └── tables/                  summary tables
 │
-└── DATA/
-    ├── raw/                         Input data fed into R (from GEE or other sources)
-    └── processed/                   Cleaned and transformed data from R
+|── DATA/
+|    ├── raw/                        Input data fed into R (from GEE or other sources)
+|    └── processed/                  Cleaned and transformed data from R
+|
+|–– DOCS/                            Documentation
+     |—— references/                 references
+     |—— notes/                      notes on specific subject/problematic.
+
 ```
 
 ---
