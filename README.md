@@ -63,6 +63,8 @@ See the GEE README for details.
 ## Data Source
 
 - **Dataset**: USDA NASS Cropland Data Layer (CDL)
+  - Info on GEE CDL: [Link](https://developers.google.com/earth-engine/datasets/catalog/USDA_NASS_CDL#description)
+  - CDL website: [link](https://www.nass.usda.gov/Research_and_Science/Cropland/SARS1a.php)
 - **Years**: 2009–2018
 - **Resolution**: 30m pixel
 - **Geography**: US Counties (TIGER/2016)
