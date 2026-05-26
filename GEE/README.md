@@ -5,10 +5,12 @@
 This folder contains all Google Earth Engine (JavaScript) scripts used for
 spatial data processing. Scripts are numbered in the order they should be run,
 but are designed to run independently.
+
+All heavy computation (transition matrices at scale) moved to R. These scripts served to prototype the
+methodology and validate R outputs.
 Outputs are exported as CSV files to Google Drive and then stored in
 `GEE/outputs/` in this repository.
 
----
 
 ## Scripts
 
@@ -31,7 +33,7 @@ across US counties, from 2009 to 2018.
    `reduceRegions()` at 30m scale
 5. **Export** — exports one CSV per year-pair and direction to Google Drive
 
-**⚠️ Masking limitation**: See `01bis` below for the methodologically improved version.
+**!!! Masking limitation**: See `01bis` below for the methodologically improved version.
 
 **Inputs**:
 - `USDA/NASS/CDL/{year}` — Cropland Data Layer, years 2009–2018
@@ -62,8 +64,8 @@ across US counties, from 2009 to 2018.
 
 ### `01bis_Dicamba_ToFrom_SoyCot_UnionMask.js`
 
-**Purpose**: Methodologically improved version of `01`, identical in all respects
-except for the agricultural masking strategy. Use this version for analysis.
+Same as `01` but uses a **union mask**: a pixel is retained if agricultural in
+**any** year across 2009–2018. Preferred version for analysis.
 
 **Masking change — Union Mask**:
 
@@ -104,21 +106,50 @@ Measuring land-use and land-cover change using the U.S. department of
 agriculture's cropland data layer: Cautions and recommendations.
 *Int J Appl Earth Obs Geoinformation*, 62, 224–235.
 
----
 
-### `02_CropClassification.js` *(coming soon)*
+### `02_CropClassification_and_TransitionMatrix.js`
 
-**Purpose**: Classifies all agricultural pixels into three categories per year:
-- **GM-enabled** — soybean and cotton (Dicamba-tolerant, commercially adopted)
-- **Tolerant** — cereals (wheat, corn, barley, etc.)
-- **Vulnerable** — other crops sensitive to Dicamba drift (e.g. tomatoes)
+Combines classification, transition matrix exploration, and verification of results
+against R outputs (Rhode Island, 2009) in one script.
 
-Will use the union mask approach from `01bis`.
+**Part 1: Classification**:
+Classifies each pixel into 4 categories per year using the union mask:
+
+| Code | Category | Description |
+|---|---|---|
+| 0 | Non-crop | In union mask but not agricultural this year |
+| 1 | GM-enabled | Soybean, cotton + some Dbl |
+| 2 | Tolerant | True cereals (wheat, corn, barley, rye, oats...) + some Dbl |
+| 3 | Vulnerable | All other agricultural codes |
+
+Priority rule for double crops: GM (1) > Tolerant (2) > Vulnerable (3).
+See `DOCS/notes/double_cropping.md` for full justification.
+
+Also includes an exploratory pixel count of ambiguous double-crop codes (230, 232, 233)
+to verify the priority rule is negligible in practice (~0.0025% of US agricultural land).
+
+**Part 2: Transition matrix approaches** (all failed at scale, pipeline moved to R):
+
+| # | Approach | Method | Outcome |
+|---|---|---|---|
+| 1 | National `frequencyHistogram` | `reduceRegion()` over full US geometry | timeout at national scale |
+| 2 | County `frequencyHistogram` | `reduceRegions()` over all counties | timeout at national scale |
+| 3 | County binary sum | One `reduceRegions()` per transition pair × 16 | timeout at national scale |
+| 4 | Export pixel classifications and do the matrices in R | `sampleRegions()` per county, `crosstab()` in R | ~30,000 exports unmanageable |
+
+The pipeline was ultimately moved to R using CDL `.tif` files downloaded directly
+from the National Agricultural Statistics Service website: [link](https://www.nass.usda.gov/Research_and_Science/Cropland/Release/index.php).
+
+**Important on projection**: all `reduceRegion()` calls must specify:
+```javascript
+crs: CDLIMAGE.projection()
+```
+Without this, GEE defaults to WGS84 and pixel counts are wrong.
+See `DOCS/notes/use_of_projection.md`.
 
 ---
 
 ### `03_Calibration.js` *(coming soon)*
 
 **Purpose**: Applies pixel-area calibration and bias adjustment to outputs from
-scripts 01bis and 02, using published NASS statistics as reference, following
-the approach described in Lark et al. (2017), Section 4.2.
+scripts 01bis and 02.
