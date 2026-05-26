@@ -1,98 +1,37 @@
-# Dicamba Research — Crop Change Analysis
+# Dicamba Research LULCC
 
-## Project Overview
+Research project investigating crop land-cover-change in the US, focusing on
+Dicamba-tolerant crop adoption (soybean, cotton) and its impact on vulnerable
+crops. Uses the USDA NASS CDL (2009–2018) at 30m resolution.
 
-This repository contains all scripts, outputs, and data for a research project
-investigating crop land-use changes in the United States, with a focus on the
-adoption of Dicamba-tolerant crops (soybean and cotton) and their potential
-impact on vulnerable crops (e.g. tomatoes).
+After initial building of the logic on GEE, the pipeline has been moved mainly in R (unmanageable/timeout in GEE) and use TSE HPC cluster.
 
-The analysis uses the **USDA NASS Cropland Data Layer (CDL)** from 2009 to 2018,
-aggregated at the **US county level** (TIGER/2016), and is carried out in two
-main tools: **Google Earth Engine (GEE)** for spatial processing and **R** for
-statistical analysis and visualization.
-
----
-
-## Repository Structure
+## Structure
 
 ```
-your-repo/
-│
-├── README.md                        
-│
-├── GEE/                             Google Earth Engine
-│   ├── codes/                       GEE JavaScript scripts
-│   └── outputs/                     Raw CSV exports from GEE
-│
-├── R/                               R analysis
-│   ├── codes/                       R scripts
-│   └── outputs/
-│       ├── figures/                 plots and maps
-│       └── tables/                  summary tables
-│
-|── DATA/
-|    ├── raw/                        Input data fed into R (from GEE or other sources)
-|    └── processed/                  Cleaned and transformed data from R
-|
-|–– DOCS/                            Documentation
-     |—— references/                 references
-     |—— notes/                      notes on specific subject/problematic.
-
+├── GEE/codes/          JavaScript exploration scripts
+├── R/codes/            Main analysis pipeline (run in order)
+└── DOCS/notes/         Methodological documentation
 ```
 
----
-
-## Numbering Convention
-
-Scripts and folders are numbered consistently across GEE, R, and DATA so it is
-always clear which data came from which script:
-
-| # | Topic |
-|---|---|
-| 01 | Soybean / Cotton change detection (GM-enabled crops) |
-| 02 | Three-way crop classification (GM-enabled / Tolerant / Vulnerable) |
-| 03 | Calibration and bias adjustment |
-
-Where two versions of a script exist (e.g. `01` and `01bis`), the `bis` version
-is the methodologically improved one and should be preferred for analysis.
-See the GEE README for details.
-
----
-
-## Data Source
-
-- **Dataset**: USDA NASS Cropland Data Layer (CDL)
-  - Info on GEE CDL: [Link](https://developers.google.com/earth-engine/datasets/catalog/USDA_NASS_CDL#description)
-  - CDL website: [link](https://www.nass.usda.gov/Research_and_Science/Cropland/SARS1a.php)
-- **Years**: 2009–2018
-- **Resolution**: 30m pixel
-- **Geography**: US Counties (TIGER/2016)
-- **Access**: via Google Earth Engine (`USDA/NASS/CDL`)
-
----
-
-## Crop Categories
-
-| Category | Crops | CDL Codes |
-|---|---|---|
-| GM-enabled | Soybean, Cotton + double crops | 2, 5, 26, 232, 238, 239, 240, 241, 254 |
-| Tolerant | Cereals (wheat, corn, barley...) | TBD in script 02 |
-| Vulnerable | Tomatoes and other sensitive crops | TBD in script 02 |
-
----
+> `data/` and `outputs/` are generated locally by the R scripts — not tracked on GitHub.
 
 ## Status
 
-- [x] GEE Script 01 : Agricultural mask + Soy/Cotton change detection at county level (2009–2018), yearly mask
-- [x] GEE Script 01bis : Same as 01 with union mask (methodological improvement, preferred version)
-- [ ] GEE Script 02 : Three-way crop classification
-- [ ] GEE Script 03 : Calibration and bias adjustment
-- [ ] R Script 01 : Data cleaning
-- [ ] R Script 02 : Statistical analysis
-- [ ] R Script 03 : Figures and tables
+| Step | Script | Status |
+|---|---|---|
+| Clip national CDL to states | `R/00_setup_and_clip.R` | tested on 2 states for the 2009–2011 period |
+| Mask + classify pixels | `R/01_mask_and_classify.R` | draft finished but improvement needed |
+| Transition matrices | `R/02_transition_matrix.R` | draft finished but imrpovement needed |
+| Scale up to 48 states | wait for ANUBIS | pending |
+| Statistical analysis | TBD | pending |
 
----
+## Key Links
+
+- [CDL download (SARS)](https://www.nass.usda.gov/Research_and_Science/Cropland/SARS1a.php) use this, not the Geospatial Data Gateway which use a different projection :"In order to conform to Geospatial Data Gateway technical specifications, any CDL data downloaded through the Geospatial Data Gateway is re-projected from Albers to the dominant Universal Transverse Mercator (UTM) zone with a spheroid of GRS 1980 and datum of NAD83".
+- [CDL on GEE](https://developers.google.com/earth-engine/datasets/catalog/USDA_NASS_CDL)
+- See `DOCS/notes/use_of_projection.md` for CRS checks (CDL / R / GEE)
+- See `DOCS/notes/double_cropping.md` for double-crop priority rules
 
 ## Author
 
