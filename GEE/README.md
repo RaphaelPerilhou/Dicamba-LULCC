@@ -146,9 +146,19 @@ crs: CDLIMAGE.projection()
 Without this, GEE defaults to WGS84 and pixel counts are wrong.
 See `DOCS/notes/use_of_projection.md`.
 
----
+### `03_Validation_PixelCounts.js`
 
-### `03_Calibration.js` *(coming soon)*
+Validates the R classification pipeline against GEE for any state, year, and
+mask period. Rebuilds the agricultural mask and classification from scratch in
+GEE and exports pixel counts per category (NonCrop, GM, Tolerant, Vulnerable)
+as a CSV. Compare the second column of the CSV against R output — differences
+below 1% are expected and attributable to boundary pixel handling (GEE
+area-weights partial pixels rather than returning integer counts).
+
+**Usage:** call `validateState(stateName, countYear, seq(maskFrom, maskTo))`
+for each state/year combination to check against R.
+
+### `04_Calibration.js` *(coming soon)*
 
 **Purpose**: Applies pixel-area calibration and bias adjustment to outputs from
 scripts 01bis and 02.
