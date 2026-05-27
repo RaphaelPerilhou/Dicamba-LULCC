@@ -3,8 +3,7 @@
 ## Overview
 
 This folder contains all Google Earth Engine (JavaScript) scripts used for
-spatial data processing. Scripts are numbered in the order they should be run,
-but are designed to run independently.
+spatial data processing. Scripts are designed to run independently.
 
 All heavy computation (transition matrices at scale) moved to R. These scripts served to prototype the
 methodology and validate R outputs.
