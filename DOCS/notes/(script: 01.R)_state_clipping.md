@@ -34,6 +34,21 @@ clipped <- crop(cdl, state_proj) %>%
 
 **`mask(state_proj)`** sets to `NA` all pixels whose centres fall outside the actual state boundary polygon, giving the precise state shape.
 
-## Why crop before mask?
+## Data source for state boundaries
 
-Applying `mask()` directly to the full US raster would be computationally expensive. `crop()` first reduces the extent to a small rectangle around the target state, so `mask()` only needs to operate on a fraction of the original data.
+State boundaries are downloaded via the `tigris` package, which provides
+direct access to TIGER shapefiles from the US Census Bureau. Calling
+`states(year = 2016, cb = TRUE)` downloads the **cartographic boundary
+shapefile** for the requested year. The `cb = TRUE` argument requests the
+simplified cartographic boundary version rather than the full legal
+TIGER/Line boundary. The former is generalised for mapping purposes
+(e.g. smoothed coastlines), which is sufficient for our pixel-level
+agricultural analysis.
+
+Each state is represented as a **polygon**, and it is this polygon that `mask()`
+uses to determine which CDL raster pixels fall inside or outside the state
+boundary.
+
+Note: tigris returns an `sf` object by default. We convert it to a terra
+`SpatVector` with `vect()` and reproject it to the CDL's CRS with
+`project()` before clipping.
