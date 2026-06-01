@@ -1,7 +1,8 @@
 # State Clipping, Boundary Delimitation
 
-To extract cropland data for a specific state, we clip the full US CDL raster to the state boundary in two steps. Below is an example for Alabama. 
+To extract cropland data for a specific state, we clip the full US CDL raster to the state boundary. Below you will find an example for Alabama as well as an explanation and how each pixel behave under different parameters.
 
+**REMARK**: Everything apply to counties (replace `states()` with `counties()`).
 ```r
 # Load US state boundaries (tigris)
 states_sf <- states(year = 2016, cb = TRUE)
