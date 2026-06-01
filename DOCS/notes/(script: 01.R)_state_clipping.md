@@ -43,7 +43,8 @@ By default, `mask()` uses `touches=TRUE` (default), meaning any pixel inside the
 In our code we use `cb = TRUE`, which means we accept the simplified boundary. 
 
 ## References: 
-- https://www.census.gov/geographies/mapping-files.html
+- https://www.census.gov/geographies/mapping-files/time-series/geo/carto-boundary-file.html
 - https://www.rdocumentation.org/packages/tigris/versions/2.2.1/topics/states
 - https://rspatial.github.io/terra/reference/mask.html
+
 
