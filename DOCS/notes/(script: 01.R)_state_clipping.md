@@ -1,6 +1,6 @@
 # State Clipping, Boundary Delimitation
 
-To extract cropland data for a specific state, we clip the full US CDL raster to the state boundary in two steps. Below is a worked example for Alabama.
+To extract cropland data for a specific state, we clip the full US CDL raster to the state boundary in two steps. Below is an example for Alabama. 
 
 ```r
 # Load US state boundaries (tigris)
@@ -22,33 +22,28 @@ clipped <- crop(cdl, state_proj) %>%
   mask(state_proj)
 ```
 
-## Step-by-step explanation
+## Explanation
 
 **`states_sf`** is an `sf` object from `tigris` where each row is a US state and the geometry column holds its boundary polygon.
 
-**`vect()`** converts the `sf` object into a `SpatVector`, which is terra's own vector format required for raster operations.
+**`vect()`** converts the `sf` object into a `SpatVector` (`Terra`'s vector format) which is required for raster operations.
 
-**`project(state_vect, crs(cdl))`** reprojects the state boundary polygon into the same Coordinate Reference System (CRS) as the CDL raster. This alignment is essential as without it, the polygon coordinates would not correspond to the correct pixel locations in the raster.
+**`project(state_vect, crs(cdl))`** reprojects the state boundary polygon into the same Coordinate Reference System (CRS) as the CDL raster. We need to do this to guarantee that the the polygon coordinates correspond to the correct pixel locations in the raster.
 
-**`crop(cdl, state_proj)`** clips the raster to the smallest rectangle containing the entire state. This dramatically reduces the data size before the more precise masking operation.
+To crop the States, we do it in two times:
+1) **`crop(cdl, state_proj)`** clips the raster to the smallest rectangle containing the entire state. This reduces the data size before we use the more precise masking operation.
 
-**`mask(state_proj)`** sets to `NA` all pixels whose centres fall outside the actual state boundary polygon, giving the precise state shape.
+2) **`mask(state_proj)`** sets to `NA` all pixels that are both outside the polygon and not touching its boundary. See below for other rule for setting a pixe as `NA`.
 
-## Data source for state boundaries
+## Precision of States Boundaries
 
-State boundaries are downloaded via the `tigris` package, which provides
-direct access to TIGER shapefiles from the US Census Bureau. Calling
-`states(year = 2016, cb = TRUE)` downloads the **cartographic boundary
-shapefile** for the requested year. The `cb = TRUE` argument requests the
-simplified cartographic boundary version rather than the full legal
-TIGER/Line boundary. The former is generalised for mapping purposes
-(e.g. smoothed coastlines), which is sufficient for our pixel-level
-agricultural analysis.
+By default, `mask()` uses `touches=TRUE` (default), meaning any pixel inside the polygon or touching the its boundary will be included. If set to `FALSE`, only pixels whose centre point falls inside the polygon are kept. In our code we use the default option which is more inclusive. 
 
-Each state is represented as a **polygon**, and it is this polygon that `mask()`
-uses to determine which CDL raster pixels fall inside or outside the state
-boundary.
+**Polygon creation**: There is also some subtlety in how the polygon itself is created. On R, we directly downloads shapefiles with `tigris` from the US Census Bureau TIGER database. The `cb` argument of the `states()` function controls the level of precision: if set to `TRUE`, it downloads a generalised cartographic boundary file (1:500,000 scale), which has fewer vertices and smoother edges. For the most detailed shapefile following legal boundaries precisely, `cb` should be set to `FALSE` (default).
+In our code we use `cb = TRUE`, which means we accept the simplified boundary. 
 
-Note: tigris returns an `sf` object by default. We convert it to a terra
-`SpatVector` with `vect()` and reproject it to the CDL's CRS with
-`project()` before clipping.
+## References: 
+- https://www.census.gov/geographies/mapping-files.html
+- https://www.rdocumentation.org/packages/tigris/versions/2.2.1/topics/states
+- https://rspatial.github.io/terra/reference/mask.html
+
