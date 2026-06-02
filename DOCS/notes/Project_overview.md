@@ -124,7 +124,7 @@ see the parallelisation notes in `R/cdl_transitions.R` (`parallelize_by = "state
 
 ---
 
-## Key Constraints for Claude Code
+## Key Constraints for Code Development
 
 - **Do not assume HPC/SLURM configuration** — write for local execution
 - **County is the unit of analysis**, not state — all path functions,
