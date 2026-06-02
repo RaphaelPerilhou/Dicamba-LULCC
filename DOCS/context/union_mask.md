@@ -36,14 +36,17 @@ For each year, every pixel in the union mask is classified as:
 **Pixel agricultural in only one year:**
 A pixel that was Soy in 2009 and Open Water (111) in all other years is retained
 by the union mask. In 2009 it is classified as GM (1). In all other years its CDL
-code is not in the agricultural code list, so it falls to NonCrop (0). This
-correctly captures a real cropland abandonment transition (GM to NonCrop) and is
-intentional. However it exits from agriculture but it is still meaningful observations.
+code is not mapped to {0, 1, 2, 3}, so it receives 99 (Unclassified). This
+can reflect various situations (e.g cropland abandonment, temporary land use change,
+CDL misclassification, or a genuine transition to a land cover type outside the
+agricultural classification scheme). Rather than forcing an arbitrary category or
+dropping the pixel entirely, 99 preserves these ambiguous observations in the
+transition matrix while flagging them as requiring caution in interpretation.
 ```r
-# Pixels inside union mask but unclassified (not in reclass_table) becomes NonCrop (0)
+# Pixels inside union mask but unclassified (not in reclass_table) become 99
 # Pixels outside union mask stay NA (excluded entirely)
 classified <- ifel(
-  !is.na(union_mask) & is.na(classified), 0,
+  !is.na(union_mask) & is.na(classified), 99L,
   classified
 )
 ```

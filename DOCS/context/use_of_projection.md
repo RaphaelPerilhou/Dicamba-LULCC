@@ -21,7 +21,7 @@ CDL data use the **USA Contiguous Albers Equal Area Conic USGS Version** with:
 - Units: metres
 
 Files downloaded directly from [SARS](https://www.nass.usda.gov/Research_and_Science/Cropland/SARS1a.php)
-are in this native Albers projection. 
+are in this native Albers projection.
 
 ## 2. Verification in R
 
@@ -64,7 +64,7 @@ projection when no `crs` parameter is specified. This is documented under
 [The Default Projection](https://developers.google.com/earth-engine/guides/projections#the-default-projection).
 
 This causes incorrect pixel counts and thus produces wrong
-transition matrix counts. 
+transition matrix counts.
 
 Therefore, we always specify `crs` and `scale` explicitly in any `reduceRegion()`
 or `reduceRegions()` call.
@@ -112,6 +112,7 @@ var counts = classifiedLayer.reduceRegion({
   maxPixels: 1e9
 });
 ```
+
 ## 6. Summary
 
 | Source | Projection | Correct ? |
@@ -121,5 +122,5 @@ var counts = classifiedLayer.reduceRegion({
 | GEE `cdl.projection()` | Albers Conical Equal Area, NAD83 | yes, matches original CDL |
 | GEE default (no `crs`) | WGS84 / EPSG:4326 | wrong projection |
 
-To conclude, the three, SARS, R, GEE with `crs` parameter (cdl.projection())use the same
+To conclude, the three, SARS, R, GEE with `crs` parameter (cdl.projection()) use the same
 projection and produce consistent pixel counts. We should not use the GEE default `crs` parameter.

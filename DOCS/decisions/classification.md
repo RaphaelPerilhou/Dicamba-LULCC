@@ -3,7 +3,7 @@
 ## Overview
 
 This document records the final classification of USDA Cropland Data Layer (CDL)
-codes we use. It explains the category scheme, the priority rules for double crops. 
+codes we use. It explains the category scheme, the priority rules for double crops.
 It is the authoritative reference for both the R pipeline
 (`cdltools`) and the GEE validation script (`Validation_script.js`), which must
 remain in sync.
@@ -34,7 +34,7 @@ Examples:
 - Dbl Crop Lettuce/Durum Wht (230) -> Tolerant (wheat over lettuce)
 - Dbl Crop Lettuce/Cantaloupe (231) -> Vulnerable (both components vulnerable)
 
-**Remark**: More details on `double_cropping.md`
+**Remark**: More details on `docs/context/double_cropping.md`
 
 ## 99: Others
 
@@ -193,7 +193,7 @@ classified <- ifel(
 ### Unclassified (99)
 
 Any CDL code **not** explicitly mapped to {0, 1, 2, 3} above will receive 99
-if the pixel is inside the union mask. 
+if the pixel is inside the union mask.
 
 
 ## Implementation Notes

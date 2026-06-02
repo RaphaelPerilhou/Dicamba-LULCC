@@ -120,7 +120,8 @@ project-root/
 
 The pipeline is currently written to run **locally** on a personal machine.
 HPC adaptation for ANUBIS will be done in a later phase. When that time comes,
-see the parallelisation notes in `R/cdl_transitions.R` (`parallelize_by = "state"`).
+parallelisation will be implemented in Stage 3 (`R/codes/02_transition_matrix.R`,
+not yet written); the planned approach is `parallelize_by = "state"`.
 
 ---
 
