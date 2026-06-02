@@ -21,6 +21,7 @@ library(dplyr)
 
 cat("Loading state boundaries (from Census TIGER)")
 states_sf <- states(year = 2016, cb = TRUE)
+counties_sf <- counties(year = 2016, cb = T)
 
 # All 48 contiguous states (for future reference)
 contiguous_states <- states_sf %>%
@@ -29,13 +30,24 @@ contiguous_states <- states_sf %>%
   pull(NAME) %>%
   sort()
 
-cat("Contiguous states available:", length(contiguous_states))
+contiguous_counties <- counties_sf %>% 
+  filter(!STATEFP %in% c("02", "15",  # Alaska, Hawaii
+                           "60", "66", "69", "72", "78")) %>%  # territories
+  pull(NAME) %>% 
+  sort()
 
-# Here define states and period of interest.
-TARGET_STATES <- c("Rhode Island", "Alabama")   # later: contiguous_states (all 48)
-TARGET_YEARS  <- c(2009: 2011)    # later: 2009:2018
+cat("Contiguous states available:", length(contiguous_states),"\n")
+cat("Contiguous counties available:", length(contiguous_counties))
+
+# Here define states, counties and period of interest.
+TARGET_STATES <- contiguous_states  
+TARGET_YEARS  <- c(2009: 2018)  
+TARGET_COUNTIES <- contiguous_counties 
+
+
 
 cat("Running for:", paste(TARGET_STATES, collapse = ", "), "\n")
+cat("Running for:", paste(TARGET_COUNTIES, collapse = ", "), "\n")
 cat("Running for years:", paste(TARGET_YEARS, collapse = ", "), "\n")
 
 # 2/ CREATE DIRECTORY STRUCTURE
@@ -139,3 +151,4 @@ for (state in TARGET_STATES) {
 
 # At this stage each folder data/clipped/<state>/ should contain a .tif file per year,
 # named like: CDL_<Year>_<State>.tif. 
+
