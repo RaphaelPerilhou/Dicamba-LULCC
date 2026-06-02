@@ -38,15 +38,15 @@ Both crops occupy fields during late spring and summer.
 
 **Post-2016:** In 2016, Monsanto genetically engineered soybeans and cotton to resist to Dicamba, allowing OTT applications directly onto actively growing crops during late spring and summer (May–July).
 
-Source: 
+Source:
 - https://www.epa.gov/pesticides/epa-provides-update-over-top-uses-dicamba
 - https://biologicaldiversity.org/w/news/press-releases/epa-reapproves-dangerous-drift-prone-pesticide-dicamba-2026-02-06/
 
 The EPA Registration Decision of October 31, 2018 (covering the 2019-2020 seasons) introduced a formal prohibition on OTT spraying 60 days or later after planting cotton and 45 days or later after planting soybeans. Importantly, the EPA noted this was not a significant burden for growers as *"the majority of OTT spraying already occurs within these timeframes."* This confirms that even before the formal cutoff, Dicamba exposure was already concentrated between planting and approximately 60 days after, which corresponds to May–July.
 
-Source: EPA Registration Decision for the Continuation of Uses of Dicamba on Dicamba Tolerant Cotton and Soybean. (PDF available on references section of this repository). 
+Source: EPA Registration Decision for the Continuation of Uses of Dicamba on Dicamba Tolerant Cotton and Soybean. (PDF available on references section of this repository).
 
 ## Conclusion
 
-Lettuce is harvested by March and replanted in August, which is outside (or with only a small overlap) the Dicamba exposure window in both pre- and post-2016 regimes. 
+Lettuce is harvested by March and replanted in August, which is outside (or with only a small overlap) the Dicamba exposure window in both pre- and post-2016 regimes.
 Combined with the negligible area of problematic double crop combinations (0.0025% of US agricultural land), it is with confidence that we can classify them in the non-vulnerable categories.

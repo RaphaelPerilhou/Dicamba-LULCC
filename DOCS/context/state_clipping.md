@@ -38,14 +38,12 @@ To crop the States, we do it in two times:
 
 ## Precision of States Boundaries
 
-By default, `mask()` uses `touches=TRUE` (default), meaning any pixel inside the polygon or touching the its boundary will be included. If set to `FALSE`, only pixels whose centre point falls inside the polygon are kept. In our code we use the default option which is more inclusive. 
+By default, `mask()` uses `touches=TRUE` (default), meaning any pixel inside the polygon or touching the its boundary will be included. If set to `FALSE`, only pixels whose centre point falls inside the polygon are kept. In our code we use the default option which is more inclusive.
 
 **Polygon creation**: There is also some subtlety in how the polygon itself is created. On R, we directly downloads shapefiles with `tigris` from the US Census Bureau TIGER database. The `cb` argument of the `states()` function controls the level of precision: if set to `TRUE`, it downloads a generalised cartographic boundary file (1:500,000 scale), which has fewer vertices and smoother edges. For the most detailed shapefile following legal boundaries precisely, `cb` should be set to `FALSE` (default).
-In our code we use `cb = TRUE`, which means we accept the simplified boundary. 
+In our code we use `cb = TRUE`, which means we accept the simplified boundary.
 
-## References: 
+## References:
 - https://www.census.gov/geographies/mapping-files/time-series/geo/carto-boundary-file.html
 - https://www.rdocumentation.org/packages/tigris/versions/2.2.1/topics/states
 - https://rspatial.github.io/terra/reference/mask.html
-
-

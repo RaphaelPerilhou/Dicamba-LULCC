@@ -11,7 +11,9 @@ After initial building of the logic on GEE, the pipeline has been moved mainly i
 ```
 ├── GEE/codes/          JavaScript exploration scripts
 ├── R/codes/            Main analysis pipeline (run in order)
-└── DOCS/notes/         Methodological documentation
+└── docs/               Methodological documentation
+    ├── context/            Project overview, background notes
+    └── decisions/          Classification and directory structure decisions
 ```
 
 > `data/` and `outputs/` are generated locally by the R scripts — not tracked on GitHub.
@@ -30,8 +32,8 @@ After initial building of the logic on GEE, the pipeline has been moved mainly i
 
 - [CDL download (SARS)](https://www.nass.usda.gov/Research_and_Science/Cropland/SARS1a.php) use this, not the Geospatial Data Gateway which use a different projection :"In order to conform to Geospatial Data Gateway technical specifications, any CDL data downloaded through the Geospatial Data Gateway is re-projected from Albers to the dominant Universal Transverse Mercator (UTM) zone with a spheroid of GRS 1980 and datum of NAD83".
 - [CDL on GEE](https://developers.google.com/earth-engine/datasets/catalog/USDA_NASS_CDL)
-- See `DOCS/notes/use_of_projection.md` for CRS checks (CDL / R / GEE)
-- See `DOCS/notes/double_cropping.md` for double-crop priority rules
+- See `docs/context/use_of_projection.md` for CRS checks (CDL / R / GEE)
+- See `docs/context/double_cropping.md` for double-crop priority rules
 
 ## Author
 
