@@ -1,26 +1,27 @@
-##############################################################################
+################################################################################
 # 01_mask_and_classify.R
 # Step 1: Build agricultural mask per year
 # Step 2: Build union mask across all study years
 # Step 3: Apply union mask to CDL layers
 # Step 4: Classify pixels into {0=NonCrop, 1=GM, 2=Tolerant, 3=Vulnerable}
-#
+
 # Inputs:  data/clipped/<state>/CDL_<year>_<state>.tif
 # Outputs: outputs/classified/<state>/Classified_<year>_<state>.tif
-#
+
 # Replicates GEE script 02 logic exactly.
 # To scale up: change TARGET_STATES and TARGET_YEARS only.
-##############################################################################
-
+################################################################################
+mem.maxVSize(vsize = 64000)  # In MB, so 32000 = 32GB
+                             # To avoid Error: vector memory limit of 16.0 Gb reached,
+                             # see mem.maxVSize()
 rm(list = ls())
 
 library(terra)
 library(tigris)
 library(dplyr)
-
+################################################################################
 # CONFIGURATION
-
-cat("Loading state boundaries (from Census TIGER 2016)")
+################################################################################
 states_sf <- states(year = 2016, cb = TRUE)
 
 # All 48 contiguous states
@@ -33,9 +34,9 @@ contiguous_states <- states_sf %>%
 cat("Contiguous states available:", length(contiguous_states), "\n")
 
 # Here define states and period of interest.
-#TARGET_STATES <- c("Rhode Island", "Alabama")
-TARGET_STATES <- c("Alabama")# later: contiguous_states (all 48)
-TARGET_YEARS  <- c(2009:2011)    # later: 2009:2018
+
+TARGET_STATES <- contiguous_states   # later: contiguous_states (all 48)
+TARGET_YEARS  <- c(2009: 2018)    # later: 2009:2018
 
 # File paths
 
@@ -48,11 +49,11 @@ classified_path <- function(year, state) {
   paste0("outputs/classified/", state, "/Classified_", year, "_",
          gsub(" ", "_", state), ".tif")
 }
-
+################################################################################
 # 1/ AGRICULTURAL MASK CODES
 # Agricultural codes 
 # Matches our GEE makeMask function
-
+################################################################################
 ag_codes <- c(
   # CROPS 1-20
   1,2,3,4,5,6,10,11,12,13,14,
@@ -72,11 +73,12 @@ ag_codes <- c(
   236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,254
 )
 
+################################################################################
 # 2/ CLASSIFICATION TABLE
 # Priority rule: GM (1) > Tolerant (2) > Vulnerable (3) > NonCrop (0)
 # Matches our GEE classifyPixel function
 # Format: c(from_crop_code, to_category_code)
-# ─────────────────────────────────────────────────────────────────────────────
+################################################################################
 
 reclass_table <- rbind(
   # 1) GM-ENABLED
@@ -193,12 +195,13 @@ reclass_table <- rbind(
   c(249, 3),  # Gourds
   c(250, 3),  # Cranberries
   # 0) NON-CROP 
-  # Fallow explicitly assigned 0
-  # All other codes not in mask fall to 0 via `others = 0`
+  # Fallow explicitly assigned 0 (other non-crop codes are NA,
+  # but they are converted to 0 if they are in the mask for at least one year)
   c(61,  0)   # Fallow/Idle Cropland
 )
-
+################################################################################
 # 3/ CORE FUNCTIONS
+################################################################################
 
 # 3.1) Build agricultural mask for one year
 make_mask <- function(year, state) {
@@ -240,8 +243,11 @@ classify_year <- function(year, state, union_mask) {
   # Classify: others = NA means unrecognized codes get NA first
   classified <- classify(masked, reclass_table, others = NA)
   
-  # Pixels inside union mask but not assigned 1/2/3 → NonCrop (0)
-  # Pixels outside union mask → stay NA (excluded entirely)
+  ##
+  # Pixels inside union mask but not assigned 1/2/3 become NonCrop (0)
+  # Pixels outside union mask stay NA (excluded entirely)
+  ##
+
   classified <- ifel(
     !is.na(union_mask) & is.na(classified), 0,  # in mask, unclassified => 0
     classified                                    # everything else unchanged
@@ -256,6 +262,26 @@ classify_year <- function(year, state, union_mask) {
     label <- c("NonCrop", "GM", "Tolerant", "Vulnerable")[cat_val + 1]
     n <- sum(values_classified == cat_val, na.rm = TRUE)
     cat("   ", label, "(", cat_val, "):", n, "pixels\n")
+  }
+  
+  # Save counts to summary CSV
+  summary_path <- "outputs/classification_summary.csv"
+  
+  counts_row <- data.frame(
+    state    = state,
+    year     = year,
+    NonCrop  = sum(values_classified == 0, na.rm = TRUE),
+    GM       = sum(values_classified == 1, na.rm = TRUE),
+    Tolerant = sum(values_classified == 2, na.rm = TRUE),
+    Vulnerable = sum(values_classified == 3, na.rm = TRUE),
+    total    = sum(!is.na(values_classified))
+  )
+  
+  if (file.exists(summary_path)) {
+    write.table(counts_row, summary_path, append = TRUE, 
+                sep = ",", row.names = FALSE, col.names = FALSE)
+  } else {
+    write.csv(counts_row, summary_path, row.names = FALSE)
   }
   
   # Total should equal union mask size
@@ -283,6 +309,18 @@ run_state <- function(state, years) {
          "\nRun 00_setup_and_clip.R first.")
   }
   
+  # Skip entire state if all classified files already exist.
+  # It avoids recomputing the union mask (expensive) for completed states
+  # when restarting after a crash or disk full error (because swaps).
+  # Note: for partially completed states, the mask is still recomputed
+  # but individual years are skipped inside classify_year().
+  
+  all_done <- all(file.exists(sapply(years, classified_path, state = state)))
+  if (all_done) {
+    cat("  All years already classified, skipping state.\n")
+    return(invisible(NULL))
+  }
+  
   # Build union mask once for all years
   union_mask <- make_union_mask(years, state)
   
@@ -295,12 +333,12 @@ run_state <- function(state, years) {
   cat("State", state, "complete.\n")
   return(paths)
 }
-
+################################################################################
 # 4. RUN
 # For parallelisation on TSE, replace lapply with mclapply:
 #   library(parallel)
 #   mclapply(TARGET_STATES, run_state, years = TARGET_YEARS, mc.cores = N)
-
+################################################################################
 cat("States:", paste(TARGET_STATES, collapse = ", "), "\n")
 cat("Years: ", paste(TARGET_YEARS,  collapse = ", "), "\n")
 
@@ -308,3 +346,8 @@ results <- lapply(TARGET_STATES, run_state, years = TARGET_YEARS)
 
 cat("ALL DONE: Classified files saved in outputs/classified/")
 
+################################################################################
+################################################################################
+################################################################################
+################################################################################
+################################################################################
