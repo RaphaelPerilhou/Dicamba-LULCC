@@ -21,7 +21,6 @@ library(dplyr)
 
 cat("Loading state boundaries (from Census TIGER)")
 states_sf <- states(year = 2016, cb = TRUE)
-counties_sf <- counties(year = 2016, cb = T)
 
 # All 48 contiguous states (for future reference)
 contiguous_states <- states_sf %>%
@@ -30,41 +29,37 @@ contiguous_states <- states_sf %>%
   pull(NAME) %>%
   sort()
 
-contiguous_counties <- counties_sf %>% 
-  filter(!STATEFP %in% c("02", "15",  # Alaska, Hawaii
-                           "60", "66", "69", "72", "78")) %>%  # territories
-  pull(NAME) %>% 
-  sort()
-
 cat("Contiguous states available:", length(contiguous_states),"\n")
-cat("Contiguous counties available:", length(contiguous_counties))
 
-# Here define states, counties and period of interest.
-TARGET_STATES <- contiguous_states  
-TARGET_YEARS  <- c(2009: 2018)  
-TARGET_COUNTIES <- contiguous_counties 
-
-
+# Here define states and period of interest.
+TARGET_STATES <- contiguous_states
+TARGET_YEARS  <- c(2009: 2018)
 
 cat("Running for:", paste(TARGET_STATES, collapse = ", "), "\n")
-cat("Running for:", paste(TARGET_COUNTIES, collapse = ", "), "\n")
 cat("Running for years:", paste(TARGET_YEARS, collapse = ", "), "\n")
 
 # 2/ CREATE DIRECTORY STRUCTURE
 
 cat("Creating directory structure")
 
-dirs <- c(
-  paste0("data/clipped/",        contiguous_states),
-  paste0("outputs/classified/",  contiguous_states),
-  paste0("outputs/transitions/", contiguous_states)
-)
-
 created <- 0
-for (d in dirs) {
-  if (!dir.exists(d)) {
-    dir.create(d, recursive = TRUE)
-    created <- created + 1
+for (state in TARGET_STATES) {
+  counties_sf <- counties(state = state, year = 2016, cb = TRUE)
+  county_names <- counties_sf %>% pull(NAME)
+  state_s <- gsub(" ", "_", state)
+  for (county in county_names) {
+    county_s <- gsub(" ", "_", county)
+    dirs <- c(
+      file.path("data/clipped",        state_s, county_s),
+      file.path("outputs/classified",  state_s, county_s),
+      file.path("outputs/transitions", state_s, county_s)
+    )
+    for (d in dirs) {
+      if (!dir.exists(d)) {
+        dir.create(d, recursive = TRUE)
+        created <- created + 1
+      }
+    }
   }
 }
 
@@ -120,21 +115,23 @@ for (i in seq_along(rasters)[-1]) {
 
 # 5/ CLIP FUNCTION
 
-clip_state <- function(year, state_name, states_sf) {
-  
-  out_path <- paste0("data/clipped/", state_name, "/CDL_", year, "_",
-                     gsub(" ", "_", state_name), ".tif")
-  
+clip_county <- function(year, state_name, county_name, counties_sf) {
+
+  state_s  <- gsub(" ", "_", state_name)
+  county_s <- gsub(" ", "_", county_name)
+  out_path <- file.path("data/clipped", state_s, county_s,
+                        paste0("CDL_", year, "_", county_s, ".tif"))
+
   if (file.exists(out_path)) {
     cat("  Skipping (exists):", out_path, "\n")
     return(out_path)
   }
-  
-  cdl         <- rast(get_cdl_path(year))
-  state_vect  <- states_sf %>% filter(NAME == state_name) %>% vect()
-  state_proj  <- project(state_vect, crs(cdl))
-  clipped     <- crop(cdl, state_proj) %>% mask(state_proj)
-  
+
+  cdl          <- rast(get_cdl_path(year))
+  county_vect  <- counties_sf %>% filter(NAME == county_name) %>% vect()
+  county_proj  <- project(county_vect, crs(cdl))
+  clipped      <- crop(cdl, county_proj) %>% mask(county_proj)
+
   writeRaster(clipped, out_path, overwrite = TRUE, datatype = "INT1U")
   cat("  Saved:", out_path, "\n")
   return(out_path)
@@ -143,12 +140,16 @@ clip_state <- function(year, state_name, states_sf) {
 # 6/ RUN CLIPPING
 
 for (state in TARGET_STATES) {
-  for (year in TARGET_YEARS) {
-    cat(state, year, "\n")
-    clip_state(year, state, states_sf)
+  counties_sf <- counties(state = state, year = 2016, cb = TRUE)
+  county_names <- counties_sf %>% pull(NAME)
+  for (county in county_names) {
+    for (year in TARGET_YEARS) {
+      cat(state, county, year, "\n")
+      clip_county(year, state, county, counties_sf)
+    }
   }
 }
 
-# At this stage each folder data/clipped/<state>/ should contain a .tif file per year,
-# named like: CDL_<Year>_<State>.tif. 
+# At this stage each folder data/clipped/<state>/<county>/ should contain a .tif file per year,
+# named like: CDL_<Year>_<County>.tif.
 

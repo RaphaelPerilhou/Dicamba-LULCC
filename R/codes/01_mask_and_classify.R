@@ -40,14 +40,18 @@ TARGET_YEARS  <- c(2009: 2018)    # later: 2009:2018
 
 # File paths
 
-clipped_path <- function(year, state) {
-  paste0("data/clipped/", state, "/CDL_", year, "_",
-         gsub(" ", "_", state), ".tif")
+clipped_path <- function(year, state, county) {
+  state_s  <- gsub(" ", "_", state)
+  county_s <- gsub(" ", "_", county)
+  file.path("data/clipped", state_s, county_s,
+            paste0("CDL_", year, "_", county_s, ".tif"))
 }
 
-classified_path <- function(year, state) {
-  paste0("outputs/classified/", state, "/Classified_", year, "_",
-         gsub(" ", "_", state), ".tif")
+classified_path <- function(year, state, county) {
+  state_s  <- gsub(" ", "_", state)
+  county_s <- gsub(" ", "_", county)
+  file.path("outputs/classified", state_s, county_s,
+            paste0("Classified_", year, "_", county_s, ".tif"))
 }
 ################################################################################
 # 1/ AGRICULTURAL MASK CODES
@@ -60,13 +64,11 @@ ag_codes <- c(
   # GRAINS, HAY, SEEDS 21-40
   21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,
   # CROPS 41-60
-  41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,
+  41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,
   # NON-CROP 61 (Fallow: retained as actively managed agricultural land)
   61,
   # CROPS 66-80
   66,67,68,69,70,71,72,74,75,76,77,
-  # Aquaculture
-  92,
   # CROPS 200-255
   204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,
   220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,
@@ -95,6 +97,8 @@ reclass_table <- rbind(
   c(1,   2),  # Corn
   c(3,   2),  # Rice
   c(4,   2),  # Sorghum
+  c(12,  2),  # Sweet Corn
+  c(13,  2),  # Pop or Orn Corn
   c(21,  2),  # Barley
   c(22,  2),  # Durum Wheat
   c(23,  2),  # Spring Wheat
@@ -104,6 +108,7 @@ reclass_table <- rbind(
   c(28,  2),  # Oats
   c(29,  2),  # Millet
   c(30,  2),  # Speltz
+  c(45,  2),  # Sugarcane
   c(205, 2),  # Triticale
   c(225, 2),  # Dbl Crop WinWht/Corn
   c(226, 2),  # Dbl Crop Oats/Corn
@@ -118,8 +123,6 @@ reclass_table <- rbind(
   c(6,   3),  # Sunflower
   c(10,  3),  # Peanuts
   c(11,  3),  # Tobacco
-  c(12,  3),  # Sweet Corn
-  c(13,  3),  # Pop or Orn Corn
   c(14,  3),  # Mint
   c(31,  3),  # Canola
   c(32,  3),  # Flaxseed
@@ -134,7 +137,6 @@ reclass_table <- rbind(
   c(42,  3),  # Dry Beans
   c(43,  3),  # Potatoes
   c(44,  3),  # Other Crops
-  c(45,  3),  # Sugarcane
   c(46,  3),  # Sweet Potatoes
   c(47,  3),  # Misc Vegs & Fruits
   c(48,  3),  # Watermelons
@@ -148,8 +150,6 @@ reclass_table <- rbind(
   c(56,  3),  # Hops
   c(57,  3),  # Herbs
   c(58,  3),  # Clover/Wildflowers
-  c(59,  3),  # Sod/Grass Seed
-  c(60,  3),  # Switchgrass
   c(66,  3),  # Cherries
   c(67,  3),  # Peaches
   c(68,  3),  # Apples
@@ -161,7 +161,6 @@ reclass_table <- rbind(
   c(75,  3),  # Almonds
   c(76,  3),  # Walnuts
   c(77,  3),  # Pears
-  c(92,  3),  # Aquaculture
   c(204, 3),  # Pistachios
   c(206, 3),  # Carrots
   c(207, 3),  # Asparagus
@@ -204,16 +203,16 @@ reclass_table <- rbind(
 ################################################################################
 
 # 3.1) Build agricultural mask for one year
-make_mask <- function(year, state) {
-  cdl <- rast(clipped_path(year, state))
+make_mask <- function(year, state, county) {
+  cdl <- rast(clipped_path(year, state, county))
   ifel(cdl %in% ag_codes, 1, NA)
 }
 
 # 3.2) Build union mask across all years for one state
 # Pixel = 1 if EVER agricultural in any year
-make_union_mask <- function(years, state) {
+make_union_mask <- function(years, state, county) {
   cat("  Building union mask across", length(years), "years\n")
-  masks <- lapply(years, function(y) make_mask(y, state))
+  masks <- lapply(years, function(y) make_mask(y, state, county))
   
   # Start with first year mask, OR with each subsequent year
   union <- masks[[1]]
@@ -227,30 +226,30 @@ make_union_mask <- function(years, state) {
 }
 
 # Classify one year using union mask
-classify_year <- function(year, state, union_mask) {
-  
-  out_path <- classified_path(year, state)
-  
+classify_year <- function(year, state, county, union_mask) {
+
+  out_path <- classified_path(year, state, county)
+
   if (file.exists(out_path)) {
     cat("  Already exists, skipping:", out_path, "\n")
     return(out_path)
   }
-  
+
   # Load clipped CDL and apply union mask
-  cdl    <- rast(clipped_path(year, state))
+  cdl    <- rast(clipped_path(year, state, county))
   masked <- mask(cdl, union_mask)
   
   # Classify: others = NA means unrecognized codes get NA first
   classified <- classify(masked, reclass_table, others = NA)
   
   ##
-  # Pixels inside union mask but not assigned 1/2/3 become NonCrop (0)
+  # Pixels inside union mask but not mapped to {0,1,2,3} become Unclassified (99)
   # Pixels outside union mask stay NA (excluded entirely)
   ##
 
   classified <- ifel(
-    !is.na(union_mask) & is.na(classified), 0,  # in mask, unclassified => 0
-    classified                                    # everything else unchanged
+    !is.na(union_mask) & is.na(classified), 99L,  # in mask, unclassified => 99
+    classified                                     # everything else unchanged
   )
   
   classified <- as.int(classified)
@@ -258,8 +257,8 @@ classify_year <- function(year, state, union_mask) {
   
   # Count pixels per category (only within union mask)
   cat("  Category counts (union mask pixels only):\n")
-  for (cat_val in 0:3) {
-    label <- c("NonCrop", "GM", "Tolerant", "Vulnerable")[cat_val + 1]
+  for (cat_val in c(0, 1, 2, 3, 99)) {
+    label <- c("0"="NonCrop","1"="GM","2"="Tolerant","3"="Vulnerable","99"="Unclassified")[as.character(cat_val)]
     n <- sum(values_classified == cat_val, na.rm = TRUE)
     cat("   ", label, "(", cat_val, "):", n, "pixels\n")
   }
@@ -269,11 +268,13 @@ classify_year <- function(year, state, union_mask) {
   
   counts_row <- data.frame(
     state    = state,
+    county   = county,
     year     = year,
     NonCrop  = sum(values_classified == 0, na.rm = TRUE),
     GM       = sum(values_classified == 1, na.rm = TRUE),
     Tolerant = sum(values_classified == 2, na.rm = TRUE),
-    Vulnerable = sum(values_classified == 3, na.rm = TRUE),
+    Vulnerable   = sum(values_classified == 3, na.rm = TRUE),
+    Unclassified = sum(values_classified == 99, na.rm = TRUE),
     total    = sum(!is.na(values_classified))
   )
   
@@ -295,42 +296,42 @@ classify_year <- function(year, state, union_mask) {
   return(out_path)
 }
 
-# Full pipeline for one state
-run_state <- function(state, years) {
+# Full pipeline for one county
+run_county <- function(state, county, years) {
   cat("####################################\n")
-  cat("State:", state, "| Years:", min(years), "-", max(years), "\n")
+  cat("State:", state, "| County:", county, "| Years:", min(years), "-", max(years), "\n")
   cat("####################################\n")
-  
+
   # Check all clipped files exist
-  missing <- years[!file.exists(sapply(years, clipped_path, state = state))]
+  missing <- years[!file.exists(sapply(years, clipped_path, state = state, county = county))]
   if (length(missing) > 0) {
-    stop("Missing clipped files for ", state, " years: ",
+    stop("Missing clipped files for ", state, " / ", county, " years: ",
          paste(missing, collapse = ", "),
          "\nRun 00_setup_and_clip.R first.")
   }
-  
-  # Skip entire state if all classified files already exist.
-  # It avoids recomputing the union mask (expensive) for completed states
+
+  # Skip entire county if all classified files already exist.
+  # It avoids recomputing the union mask (expensive) for completed counties
   # when restarting after a crash or disk full error (because swaps).
-  # Note: for partially completed states, the mask is still recomputed
+  # Note: for partially completed counties, the mask is still recomputed
   # but individual years are skipped inside classify_year().
-  
-  all_done <- all(file.exists(sapply(years, classified_path, state = state)))
+
+  all_done <- all(file.exists(sapply(years, classified_path, state = state, county = county)))
   if (all_done) {
-    cat("  All years already classified, skipping state.\n")
+    cat("  All years already classified, skipping county.\n")
     return(invisible(NULL))
   }
-  
+
   # Build union mask once for all years
-  union_mask <- make_union_mask(years, state)
-  
+  union_mask <- make_union_mask(years, state, county)
+
   # Classify each year
   paths <- lapply(years, function(y) {
     cat("    - Year:", y, "\n")
-    classify_year(y, state, union_mask)
+    classify_year(y, state, county, union_mask)
   })
-  
-  cat("State", state, "complete.\n")
+
+  cat("County", county, "complete.\n")
   return(paths)
 }
 ################################################################################
@@ -342,7 +343,13 @@ run_state <- function(state, years) {
 cat("States:", paste(TARGET_STATES, collapse = ", "), "\n")
 cat("Years: ", paste(TARGET_YEARS,  collapse = ", "), "\n")
 
-results <- lapply(TARGET_STATES, run_state, years = TARGET_YEARS)
+for (state in TARGET_STATES) {
+  counties_sf <- counties(state = state, year = 2016, cb = TRUE)
+  county_names <- counties_sf %>% pull(NAME)
+  for (county in county_names) {
+    run_county(state, county, TARGET_YEARS)
+  }
+}
 
 cat("ALL DONE: Classified files saved in outputs/classified/")
 
