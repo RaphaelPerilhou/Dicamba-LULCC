@@ -5,7 +5,6 @@
 
 # Inputs:  outputs/classified/<state>/Classified_<year>_<state>.tif
 # Outputs: outputs/transitions/<state>/TM_<year_from><year_to>_<state>.csv
-#          outputs/transitions/<state>/TM_all_<state>.csv (all years combined)
 
 # For parallelisation on ANUBIS HPC: replace lapply with mclapply.
 ################################################################################
@@ -100,10 +99,10 @@ compute_transition <- function(year_from, year_to, state, county, force = FALSE)
   # Crosstab counts every combination of (r_from value, r_to value).
   # NAs are automatically ignored (only pixels outside the union mask,
   # which we exclude entirely). Pixels inside the union mask but
-  # unclassified were already converted to 0 (NonCrop) in 01.R.
+  # unclassified were already converted to 99 (Unclassified) in 01.R.
   cat("  Running crosstab", year_from, "->", year_to, "...\n")
   stacked <- c(r_from, r_to)
-  tm      <- crosstab(stacked)  # Our 4x4 matrix 
+  tm      <- crosstab(stacked)  # Our 5x5 matrix 
   
   # Apply category labels to rows and columns
   rownames(tm) <- category_labels[rownames(tm)]
@@ -117,7 +116,7 @@ compute_transition <- function(year_from, year_to, state, county, force = FALSE)
   cat("  Transition matrix:", year_from, "->", year_to)
   print(tm)
   
-  # Save the 4x4 matrix as CSV
+  # Save the 5x5 matrix as CSV
   write.csv(tm, out_path)
   cat("  Saved:", out_path, "\n")
   
