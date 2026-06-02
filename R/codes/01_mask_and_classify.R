@@ -243,7 +243,7 @@ classify_year <- function(year, state, county, union_mask) {
   classified <- classify(masked, reclass_table, others = NA)
   
   ##
-  # Pixels inside union mask but not assigned 1/2/3 become NonCrop (0)
+  # Pixels inside union mask but not mapped to {0,1,2,3} become Unclassified (99)
   # Pixels outside union mask stay NA (excluded entirely)
   ##
 
