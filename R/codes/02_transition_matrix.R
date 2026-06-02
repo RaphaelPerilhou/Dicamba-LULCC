@@ -39,38 +39,43 @@ TARGET_YEARS  <- c(2009: 2018)    # later: 2009:2018
 
 # File paths
 
-classified_path <- function(year, state) {
-  paste0("outputs/classified/", state, "/Classified_", year, "_",
-         gsub(" ", "_", state), ".tif")
+classified_path <- function(year, state, county) {
+  state_s  <- gsub(" ", "_", state)
+  county_s <- gsub(" ", "_", county)
+  file.path("outputs/classified", state_s, county_s,
+            paste0("Classified_", year, "_", county_s, ".tif"))
 }
 
-transition_path <- function(year_from, year_to, state) {
-  paste0("outputs/transitions/", state, "/TM_", year_from, year_to, "_",
-         gsub(" ", "_", state), ".csv")
+transition_path <- function(year_from, year_to, state, county) {
+  state_s  <- gsub(" ", "_", state)
+  county_s <- gsub(" ", "_", county)
+  file.path("outputs/transitions", state_s, county_s,
+            paste0("TM_", year_from, year_to, "_", county_s, ".csv"))
 }
 ################################################################################
 # CATEGORY LABELS
 ################################################################################
-category_labels <- c("0" = "NonCrop",
-                     "1" = "GM",
-                     "2" = "Tolerant",
-                     "3" = "Vulnerable")
+category_labels <- c("0"  = "NonCrop",
+                     "1"  = "GM",
+                     "2"  = "Tolerant",
+                     "3"  = "Vulnerable",
+                     "99" = "Unclassified")
 
 ################################################################################
 # TRANSITION FUNCTION: Compute transition matrix for one year pair
 ################################################################################
-compute_transition <- function(year_from, year_to, state, force = FALSE) {
-  
-  out_path <- transition_path(year_from, year_to, state)
-  
+compute_transition <- function(year_from, year_to, state, county, force = FALSE) {
+
+  out_path <- transition_path(year_from, year_to, state, county)
+
   if (file.exists(out_path) && !force) {
     cat("  Already exists, skipping:", out_path, "\n")
     return(read.csv(out_path, row.names = 1, check.names = FALSE))
   }
-  
+
   # Check inputs exist
-  path_from <- classified_path(year_from, state)
-  path_to   <- classified_path(year_to,   state)
+  path_from <- classified_path(year_from, state, county)
+  path_to   <- classified_path(year_to,   state, county)
   
   if (!file.exists(path_from)) {
     stop("Missing classified raster: ", path_from,
@@ -132,14 +137,18 @@ cat("States:", paste(TARGET_STATES, collapse = ", "), "\n")
 cat("Years: ", paste(TARGET_YEARS,  collapse = ", "), "\n\n")
 
 for (state in TARGET_STATES) {
-  cat("##########################################\n")
-  cat("State:", state, "| Years:", min(TARGET_YEARS), "-", max(TARGET_YEARS),"\n")
-  cat("##########################################\n")
-  for (i in seq_len(length(TARGET_YEARS) - 1)) {
-    cat("  - Year pair:", TARGET_YEARS[i], "->", TARGET_YEARS[i+1])
-    compute_transition(TARGET_YEARS[i], TARGET_YEARS[i+1], state)
+  counties_sf <- counties(state = state, year = 2016, cb = TRUE)
+  county_names <- counties_sf %>% pull(NAME)
+  for (county in county_names) {
+    cat("##########################################\n")
+    cat("State:", state, "| County:", county, "| Years:", min(TARGET_YEARS), "-", max(TARGET_YEARS),"\n")
+    cat("##########################################\n")
+    for (i in seq_len(length(TARGET_YEARS) - 1)) {
+      cat("  - Year pair:", TARGET_YEARS[i], "->", TARGET_YEARS[i+1])
+      compute_transition(TARGET_YEARS[i], TARGET_YEARS[i+1], state, county)
+    }
+    cat("County", county, "complete.")
   }
-  cat("State", state, "complete.")
 }
 
 cat("ALL DONE: Transition matrices saved in outputs/transitions/")
