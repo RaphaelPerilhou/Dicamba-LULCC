@@ -8,7 +8,7 @@
 # For now: Rhode Island only, 2009-2010.
 # Later on TSE server: change states and years arguments only.
 ##############################################################################
-
+setwd("/users/rperilhou/RA_Dicamba/")
 rm(list = ls())
 
 library(terra)
@@ -144,18 +144,56 @@ clip_county <- function(year, state_name, county_name, counties_sf) {
 
 # 6/ RUN CLIPPING
 
-for (state in TARGET_STATES) {
+#for (state in TARGET_STATES) {
+#  state_fips     <- states_sf %>% sf::st_drop_geometry() %>%
+#    filter(NAME == state) %>% pull(STATEFP)
+#  counties_state <- counties_sf %>% filter(STATEFP == state_fips)
+#  county_names   <- counties_state %>% sf::st_drop_geometry() %>% pull(NAME)
+#  for (county in county_names) {
+#    for (year in TARGET_YEARS) {
+#      cat(state, county, year, "\n")
+#      clip_county(year, state, county, counties_sf)
+#    }
+#  }
+#}
+
+# 6/ RUN CLIPPING
+library(parallel)
+
+# Build flat list of all state/county tasks
+tasks <- do.call(rbind, lapply(TARGET_STATES, function(state) {
+  state_fips   <- states_sf %>% sf::st_drop_geometry() %>%
+    filter(NAME == state) %>% pull(STATEFP)
+  county_names <- counties_sf %>% sf::st_drop_geometry() %>%
+    filter(STATEFP == state_fips) %>% pull(NAME)
+  expand.grid(state = state, county = county_names,
+              stringsAsFactors = FALSE)
+}))
+
+# ANUBIS cluster setup
+source("/softs/R/createCluster.R")
+cl <- createCluster()
+
+# Export necessary objects to all workers
+clusterExport(cl, c("states_sf", "counties_sf", "TARGET_YEARS",
+                    "clip_county", "get_cdl_path"))
+
+# Run clipping in parallel across all state/county pairs
+parLapply(cl, seq_len(nrow(tasks)), function(i) {
+  library(terra)
+  library(dplyr)
+  state  <- tasks$state[i]
+  county <- tasks$county[i]
   state_fips     <- states_sf %>% sf::st_drop_geometry() %>%
     filter(NAME == state) %>% pull(STATEFP)
   counties_state <- counties_sf %>% filter(STATEFP == state_fips)
-  county_names   <- counties_state %>% sf::st_drop_geometry() %>% pull(NAME)
-  for (county in county_names) {
-    for (year in TARGET_YEARS) {
-      cat(state, county, year, "\n")
-      clip_county(year, state, county, counties_sf)
-    }
+  for (year in TARGET_YEARS) {
+    clip_county(year, state, county, counties_state)
   }
-}
+})
+
+stopCluster(cl)
+cat("ALL DONE: Clipped files saved in data/clipped/")
 
 # At this stage each folder data/clipped/<state>/<county>/ should contain a .tif file per year,
 # named like: CDL_<Year>_<County>.tif.
