@@ -12,7 +12,8 @@
 rm(list = ls())
 
 library(terra)
-library(tigris)
+#library(tigris) not installed on ANUBIS so we download the shapefiles from
+# tigris package on our computer as RDS and then we load them directly.
 library(dplyr)
 
 # 1/ LOAD OFFICIAL STATE BOUNDARIES FROM CENSUS
@@ -20,12 +21,14 @@ library(dplyr)
 
 
 cat("Loading state boundaries (from Census TIGER)")
-states_sf <- states(year = 2016, cb = TRUE)
-
+#states_sf <- states(year = 2016, cb = TRUE)
+states_sf <- readRDS("data/SF/states_2016.rds")
+counties_sf <- readRDS("data/SF/counties_2016.rds")
 # All 48 contiguous states (for future reference)
 contiguous_states <- states_sf %>%
-  filter(!STATEFP %in% c("02", "15",  # Alaska, Hawaii
-                         "60", "66", "69", "72", "78")) %>%  # territories
+  sf::st_drop_geometry() %>%
+  filter(!STATEFP %in% c("02", "15",
+                         "60", "66", "69", "72", "78")) %>%
   pull(NAME) %>%
   sort()
 
@@ -44,8 +47,10 @@ cat("Creating directory structure")
 
 created <- 0
 for (state in TARGET_STATES) {
-  counties_sf <- counties(state = state, year = 2016, cb = TRUE)
-  county_names <- counties_sf %>% pull(NAME)
+  state_fips   <- states_sf %>% sf::st_drop_geometry() %>% 
+    filter(NAME == state) %>% pull(STATEFP)
+  county_names <- counties_sf %>% sf::st_drop_geometry() %>%
+    filter(STATEFP == state_fips) %>% pull(NAME)
   state_s <- gsub(" ", "_", state)
   for (county in county_names) {
     county_s <- gsub(" ", "_", county)
@@ -140,8 +145,10 @@ clip_county <- function(year, state_name, county_name, counties_sf) {
 # 6/ RUN CLIPPING
 
 for (state in TARGET_STATES) {
-  counties_sf <- counties(state = state, year = 2016, cb = TRUE)
-  county_names <- counties_sf %>% pull(NAME)
+  state_fips     <- states_sf %>% sf::st_drop_geometry() %>%
+    filter(NAME == state) %>% pull(STATEFP)
+  counties_state <- counties_sf %>% filter(STATEFP == state_fips)
+  county_names   <- counties_state %>% sf::st_drop_geometry() %>% pull(NAME)
   for (county in county_names) {
     for (year in TARGET_YEARS) {
       cat(state, county, year, "\n")
