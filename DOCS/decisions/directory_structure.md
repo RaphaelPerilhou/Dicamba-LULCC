@@ -3,7 +3,7 @@
 ## Overview
 
 This document specifies the folder structure, file naming conventions, and
-`path_fn` signatures used throughout the `cdltools` pipeline. The pipeline
+path function signatures used throughout the pipeline. The pipeline
 operates at **county level** nested within states. All code must follow
 these conventions exactly to ensure consistency between the three pipeline
 stages and future HPC adaptation.
@@ -33,24 +33,16 @@ data/
   (e.g. `Jefferson_County`, `St_Lawrence_County`)
 - File names: `CDL_<year>_<County_Name>.tif`
 
-### `path_fn` signature (input)
+### `clipped_path()` signature (defined in `00_setup_and_clip.R` and `01_mask_and_classify.R`)
 
 ```r
-path_fn <- function(year, state, county) {
-  file.path(
-    "data", "clipped",
-    gsub(" ", "_", state),
-    gsub(" ", "_", county),
-    paste0("CDL_", year, "_", gsub(" ", "_", county), ".tif")
-  )
+clipped_path <- function(year, state, county) {
+  state_s  <- gsub(" ", "_", state)
+  county_s <- gsub(" ", "_", county)
+  file.path("data/clipped", state_s, county_s,
+            paste0("CDL_", year, "_", county_s, ".tif"))
 }
 ```
-
-> **Note**: `path_fn` takes three arguments at county level: `year`, `state`,
-> and `county`. This is a breaking change from the original state-level
-> pipeline where `path_fn(year, state)` took only two arguments. All
-> internal `cdltools` functions that accept `path_fn` must be updated
-> accordingly.
 
 ---
 
@@ -102,35 +94,30 @@ Unclassified (99).
 
 ---
 
-## Internal Path Helpers (`R/utils.R`)
+## Path Functions
 
-The internal helpers `.make_output_path()` and `.make_transition_path()`
-must be updated to accept a `county` argument and nest county within state:
+Each script defines its own path functions at the top. They all follow the same
+`(year, state, county)` signature and the same `gsub(" ", "_", ...)` convention.
+
+### `classified_path()` (defined in `01_mask_and_classify.R` and `02_transition_matrix.R`)
 
 ```r
-.make_output_path <- function(output_dir, state, county, year) {
-  county_dir <- file.path(
-    output_dir, "classified",
-    gsub(" ", "_", state),
-    gsub(" ", "_", county)
-  )
-  if (!dir.exists(county_dir)) dir.create(county_dir, recursive = TRUE)
-  file.path(county_dir,
-            paste0("Classified_", year, "_",
-                   gsub(" ", "_", county), ".tif"))
+classified_path <- function(year, state, county) {
+  state_s  <- gsub(" ", "_", state)
+  county_s <- gsub(" ", "_", county)
+  file.path("outputs/classified", state_s, county_s,
+            paste0("Classified_", year, "_", county_s, ".tif"))
 }
+```
 
-.make_transition_path <- function(output_dir, state, county,
-                                  year_from, year_to) {
-  county_dir <- file.path(
-    output_dir, "transitions",
-    gsub(" ", "_", state),
-    gsub(" ", "_", county)
-  )
-  if (!dir.exists(county_dir)) dir.create(county_dir, recursive = TRUE)
-  file.path(county_dir,
-            paste0("Transition_", year_from, "_", year_to, "_",
-                   gsub(" ", "_", county), ".csv"))
+### `transition_path()` (defined in `02_transition_matrix.R`)
+
+```r
+transition_path <- function(year_from, year_to, state, county) {
+  state_s  <- gsub(" ", "_", state)
+  county_s <- gsub(" ", "_", county)
+  file.path("outputs/transitions", state_s, county_s,
+            paste0("TM_", year_from, year_to, "_", county_s, ".csv"))
 }
 ```
 
@@ -157,11 +144,11 @@ Unclassified ...  ...       ...         ...           ...
 
 | Aspect | Original (state) | New (county) |
 |--------|-----------------|--------------|
-| `path_fn` args | `(year, state)` | `(year, state, county)` |
+| Path function args | `(year, state)` | `(year, state, county)` |
 | Main loop | over states | over states → counties |
 | Output nesting | `classified/<state>/` | `classified/<state>/<county>/` |
 | File naming | `Classified_<year>_<state>.tif` | `Classified_<year>_<county>.tif` |
-| Transition naming | `Transition_<y1>_<y2>_<state>.csv` | `Transition_<y1>_<y2>_<county>.csv` |
+| Transition naming | `TM_<y1><y2>_<state>.csv` | `TM_<y1><y2>_<county>.csv` |
 | Union mask scope | per state | per county |
 
 ---
