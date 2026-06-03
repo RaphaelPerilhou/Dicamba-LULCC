@@ -40,7 +40,7 @@ Four categories are used. Full details and rationale are in
 
 ## Pipeline Overview
 
-The pipeline has three stages, implemented as an R package (`cdltools`):
+The pipeline has three stages, implemented as three standalone R scripts:
 
 ### Stage 1 — Setup and Clip (`00_setup_and_clip.R`)
 - Downloads or locates raw CDL rasters (national, 30m)
@@ -51,7 +51,7 @@ The pipeline has three stages, implemented as an R package (`cdltools`):
 - Builds a **union agricultural mask** per county across all 10 years
   (a pixel is retained if it was agricultural in *any* year)
 - Classifies each pixel into {0, 1, 2, 3, 99} per year using
-  `default_cdl_categories()`
+  `reclass_table` defined at the top of `01_mask_and_classify.R`
 - Outputs one classified `.tif` per county per year
 
 ### Stage 3 — Transition Matrices (`02_transition_matrix.R`)
@@ -90,16 +90,15 @@ outputs/
 
 ```
 project-root/
-├── R/                        # cdltools package source
+├── R/
+│   └── codes/                # R pipeline scripts (run in order)
 ├── GEE/                      # Google Earth Engine scripts
-├── docs/
-│   ├── context/
-│   │   └── project_overview.md     ← this file
-│   └── decisions/
-│       ├── classification.md       ← CDL category decisions
-│       └── directory_structure.md  ← folder/naming conventions
-├── tests/                    # testthat unit tests
-└── vignettes/                # getting started guide
+└── docs/
+    ├── context/
+    │   └── project_overview.md     ← this file
+    └── decisions/
+        ├── classification.md       ← CDL category decisions
+        └── directory_structure.md  ← folder/naming conventions
 ```
 
 ---
@@ -108,7 +107,7 @@ project-root/
 
 | Tool | Role |
 |------|------|
-| R (`cdltools`) | Main pipeline — mask, classify, transition matrices |
+| R (`terra`, `tigris`, `dplyr`) | Main pipeline — mask, classify, transition matrices |
 | `terra` | Raster I/O and operations |
 | `tigris` | County/state boundary shapefiles |
 | Google Earth Engine (GEE) | Independent validation for selected states/years |
@@ -120,16 +119,16 @@ project-root/
 
 The pipeline is currently written to run **locally** on a personal machine.
 HPC adaptation for ANUBIS will be done in a later phase. When that time comes,
-parallelisation will be implemented in Stage 3 (`R/codes/02_transition_matrix.R`,
-not yet written); the planned approach is `parallelize_by = "state"`.
+parallelisation will be added to the run loop in `R/codes/02_transition_matrix.R`;
+the planned approach is `mclapply` over states.
 
 ---
 
 ## Key Constraints for Code Development
 
 - **Do not assume HPC/SLURM configuration** — write for local execution
-- **County is the unit of analysis**, not state — all path functions,
-  directory helpers, and output naming must use county + state
+- **County is the unit of analysis**, not state — `clipped_path()`, `classified_path()`,
+  and `transition_path()` all take `(year, state, county)` and must stay that way
 - **Transition matrices must be saved as named matrices** (5×5 `.csv`),
   not long/panel format
 - **Classification must match `docs/decisions/classification.md` exactly**
