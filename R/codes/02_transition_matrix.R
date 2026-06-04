@@ -39,21 +39,16 @@ TARGET_YEARS  <- c(2009: 2018)    # later: 2009:2018
 
 # File paths
 
-make_county_s <- function(county_name, countyfp) {
-  s <- gsub(" ", "_", county_name)
-  if (as.numeric(countyfp) >= 500) paste0(s, "_City") else s
-}
-
-classified_path <- function(year, state, county, countyfp) {
+classified_path <- function(year, state, county) {
   state_s  <- gsub(" ", "_", state)
-  county_s <- make_county_s(county, countyfp)
+  county_s <- gsub(" ", "_", county)
   file.path("outputs/classified", state_s, county_s,
             paste0("Classified_", year, "_", county_s, ".tif"))
 }
 
-transition_path <- function(year_from, year_to, state, county, countyfp) {
+transition_path <- function(year_from, year_to, state, county) {
   state_s  <- gsub(" ", "_", state)
-  county_s <- make_county_s(county, countyfp)
+  county_s <- gsub(" ", "_", county)
   file.path("outputs/transitions", state_s, county_s,
             paste0("TM_", year_from, year_to, "_", county_s, ".csv"))
 }
@@ -69,9 +64,9 @@ category_labels <- c("0"  = "NonCrop",
 ################################################################################
 # TRANSITION FUNCTION: Compute transition matrix for one year pair
 ################################################################################
-compute_transition <- function(year_from, year_to, state, county, countyfp, force = FALSE) {
+compute_transition <- function(year_from, year_to, state, county, force = FALSE) {
 
-  out_path <- transition_path(year_from, year_to, state, county, countyfp)
+  out_path <- transition_path(year_from, year_to, state, county)
 
   if (file.exists(out_path) && !force) {
     cat("  Already exists, skipping:", out_path, "\n")
@@ -79,17 +74,11 @@ compute_transition <- function(year_from, year_to, state, county, countyfp, forc
   }
 
   # Check inputs exist
-  path_from <- classified_path(year_from, state, county, countyfp)
-  path_to   <- classified_path(year_to,   state, county, countyfp)
+  path_from <- classified_path(year_from, state, county)
+  path_to   <- classified_path(year_to,   state, county)
   
-  if (!file.exists(path_from)) {
-    stop("Missing classified raster: ", path_from,
-         "\nRun 01_mask_and_classify.R first.")
-  }
-  if (!file.exists(path_to)) {
-    stop("Missing classified raster: ", path_to,
-         "\nRun 01_mask_and_classify.R first.")
-  }
+  if (!file.exists(path_from)) stop("Missing classified raster: ", path_from)
+  if (!file.exists(path_to))   stop("Missing classified raster: ", path_to)
   
   # Load both classified rasters
   r_from <- rast(path_from)
@@ -97,8 +86,7 @@ compute_transition <- function(year_from, year_to, state, county, countyfp, forc
   
   # Verify alignment (same extent, resolution and CRS)
   if (!compareGeom(r_from, r_to, stopOnError = FALSE)) {
-    stop("Rasters are not aligned for ", state,
-         " years ", year_from, "-", year_to)
+    stop("Rasters are not aligned for ", state, " years ", year_from, "-", year_to)
   }
   
   # Stack and crosstab to get exact pixel-level transition matrix.
@@ -129,7 +117,8 @@ compute_transition <- function(year_from, year_to, state, county, countyfp, forc
   return(tm)
 }
 
-# RUN
+# Run 
+
 cat("Starting transition matrix pipeline...\n")
 cat("States:", paste(TARGET_STATES, collapse = ", "), "\n")
 cat("Years: ", paste(TARGET_YEARS,  collapse = ", "), "\n\n")
@@ -139,12 +128,10 @@ library(parallel)
 tasks <- do.call(rbind, lapply(TARGET_STATES, function(state) {
   state_fips   <- states_sf %>% sf::st_drop_geometry() %>%
     filter(NAME == state) %>% pull(STATEFP)
-  counties_tbl <- counties_sf %>% sf::st_drop_geometry() %>%
-    filter(STATEFP == state_fips) %>% select(NAME, COUNTYFP)
-  data.frame(state    = state,
-             county   = counties_tbl$NAME,
-             countyfp = counties_tbl$COUNTYFP,
-             stringsAsFactors = FALSE)
+  county_names <- counties_sf %>% sf::st_drop_geometry() %>%
+    filter(STATEFP == state_fips) %>% pull(NAME)
+  expand.grid(state = state, county = county_names,
+              stringsAsFactors = FALSE)
 }))
 
 source("/softs/R/createCluster.R")
@@ -152,16 +139,15 @@ cl <- createCluster()
 
 clusterExport(cl, c("states_sf", "counties_sf", "TARGET_YEARS",
                     "compute_transition", "classified_path", "transition_path",
-                    "category_labels", "make_county_s", "tasks"))
+                    "category_labels", "tasks"))
 
 parLapply(cl, seq_len(nrow(tasks)), function(i) {
   library(terra)
   library(dplyr)
-  state    <- tasks$state[i]
-  county   <- tasks$county[i]
-  countyfp <- tasks$countyfp[i]
+  state  <- tasks$state[i]
+  county <- tasks$county[i]
   for (j in seq_len(length(TARGET_YEARS) - 1)) {
-    compute_transition(TARGET_YEARS[j], TARGET_YEARS[j+1], state, county, countyfp)
+    compute_transition(TARGET_YEARS[j], TARGET_YEARS[j+1], state, county)
   }
 })
 
