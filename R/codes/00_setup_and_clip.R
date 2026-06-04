@@ -41,6 +41,14 @@ TARGET_YEARS  <- c(2009: 2018)
 cat("Running for:", paste(TARGET_STATES, collapse = ", "), "\n")
 cat("Running for years:", paste(TARGET_YEARS, collapse = ", "), "\n")
 
+# Independent cities (COUNTYFP >= 500) share NAME with a nearby county.
+# Append _City to the folder/file token to keep paths distinct.
+make_county_s <- function(county_name, countyfp) {
+  s <- gsub(" ", "_", county_name)
+  if (as.numeric(countyfp) >= 500) paste0(s, "_City") else s
+}
+
+
 # 2/ CREATE DIRECTORY STRUCTURE
 
 cat("Creating directory structure")
@@ -81,13 +89,6 @@ cat("Checking CDL files:")
 
 get_cdl_path <- function(year) {
   paste0("data/", year, "_30m_cdls/", year, "_30m_cdls.tif")
-}
-
-# Independent cities (COUNTYFP >= 500) share NAME with a nearby county.
-# Append _City to the folder/file token to keep paths distinct.
-make_county_s <- function(county_name, countyfp) {
-  s <- gsub(" ", "_", county_name)
-  if (as.numeric(countyfp) >= 500) paste0(s, "_City") else s
 }
 
 missing_files <- c()
