@@ -41,16 +41,21 @@ TARGET_YEARS  <- c(2009: 2018)    # later: 2009:2018
 
 # File paths
 
-clipped_path <- function(year, state, county) {
+make_county_s <- function(county_name, countyfp) {
+  s <- gsub(" ", "_", county_name)
+  if (as.numeric(countyfp) >= 500) paste0(s, "_City") else s
+}
+
+clipped_path <- function(year, state, county, countyfp) {
   state_s  <- gsub(" ", "_", state)
-  county_s <- gsub(" ", "_", county)
+  county_s <- make_county_s(county, countyfp)
   file.path("data/clipped", state_s, county_s,
             paste0("CDL_", year, "_", county_s, ".tif"))
 }
 
-classified_path <- function(year, state, county) {
+classified_path <- function(year, state, county, countyfp) {
   state_s  <- gsub(" ", "_", state)
-  county_s <- gsub(" ", "_", county)
+  county_s <- make_county_s(county, countyfp)
   file.path("outputs/classified", state_s, county_s,
             paste0("Classified_", year, "_", county_s, ".tif"))
 }
@@ -204,16 +209,16 @@ reclass_table <- rbind(
 ################################################################################
 
 # 3.1) Build agricultural mask for one year
-make_mask <- function(year, state, county) {
-  cdl <- rast(clipped_path(year, state, county))
+make_mask <- function(year, state, county, countyfp) {
+  cdl <- rast(clipped_path(year, state, county, countyfp))
   ifel(cdl %in% ag_codes, 1, NA)
 }
 
 # 3.2) Build union mask across all years for one state
 # Pixel = 1 if EVER agricultural in any year
-make_union_mask <- function(years, state, county) {
+make_union_mask <- function(years, state, county, countyfp) {
   cat("  Building union mask across", length(years), "years\n")
-  masks <- lapply(years, function(y) make_mask(y, state, county))
+  masks <- lapply(years, function(y) make_mask(y, state, county, countyfp))
   
   # Start with first year mask, OR with each subsequent year
   union <- masks[[1]]
@@ -227,9 +232,9 @@ make_union_mask <- function(years, state, county) {
 }
 
 # Classify one year using union mask
-classify_year <- function(year, state, county, union_mask) {
+classify_year <- function(year, state, county, countyfp, union_mask) {
 
-  out_path <- classified_path(year, state, county)
+  out_path <- classified_path(year, state, county, countyfp)
 
   if (file.exists(out_path)) {
     cat("  Already exists, skipping:", out_path, "\n")
@@ -237,7 +242,7 @@ classify_year <- function(year, state, county, union_mask) {
   }
 
   # Load clipped CDL and apply union mask
-  cdl    <- rast(clipped_path(year, state, county))
+  cdl    <- rast(clipped_path(year, state, county, countyfp))
   masked <- mask(cdl, union_mask)
   
   # Classify: others = NA means unrecognized codes get NA first
@@ -266,10 +271,10 @@ classify_year <- function(year, state, county, union_mask) {
   
   # Save counts to summary CSV
   summary_path <- "outputs/classification_summary.csv"
-  
+
   counts_row <- data.frame(
     state    = state,
-    county   = county,
+    county   = make_county_s(county, countyfp),
     year     = year,
     NonCrop  = sum(values_classified == 0, na.rm = TRUE),
     GM       = sum(values_classified == 1, na.rm = TRUE),
@@ -290,7 +295,7 @@ classify_year <- function(year, state, county, union_mask) {
   total <- sum(!is.na(values_classified))
   cat("  Total classified pixels:", total,
       "(union mask has", sum(values(union_mask) == 1, na.rm = TRUE), ")\n")
-  
+
   writeRaster(classified, out_path, overwrite = TRUE, datatype = "INT1U")
   cat("  Saved:", out_path, "\n")
   
@@ -298,13 +303,13 @@ classify_year <- function(year, state, county, union_mask) {
 }
 
 # Full pipeline for one county
-run_county <- function(state, county, years) {
+run_county <- function(state, county, countyfp, years) {
   cat("####################################\n")
   cat("State:", state, "| County:", county, "| Years:", min(years), "-", max(years), "\n")
   cat("####################################\n")
 
   # Check all clipped files exist
-  missing <- years[!file.exists(sapply(years, clipped_path, state = state, county = county))]
+  missing <- years[!file.exists(sapply(years, clipped_path, state = state, county = county, countyfp = countyfp))]
   if (length(missing) > 0) {
     stop("Missing clipped files for ", state, " / ", county, " years: ",
          paste(missing, collapse = ", "),
@@ -317,19 +322,19 @@ run_county <- function(state, county, years) {
   # Note: for partially completed counties, the mask is still recomputed
   # but individual years are skipped inside classify_year().
 
-  all_done <- all(file.exists(sapply(years, classified_path, state = state, county = county)))
+  all_done <- all(file.exists(sapply(years, classified_path, state = state, county = county, countyfp = countyfp)))
   if (all_done) {
     cat("  All years already classified, skipping county.\n")
     return(invisible(NULL))
   }
 
   # Build union mask once for all years
-  union_mask <- make_union_mask(years, state, county)
+  union_mask <- make_union_mask(years, state, county, countyfp)
 
   # Classify each year
   paths <- lapply(years, function(y) {
     cat("    - Year:", y, "\n")
-    classify_year(y, state, county, union_mask)
+    classify_year(y, state, county, countyfp, union_mask)
   })
 
   cat("County", county, "complete.\n")
@@ -346,10 +351,12 @@ library(parallel)
 tasks <- do.call(rbind, lapply(TARGET_STATES, function(state) {
   state_fips   <- states_sf %>% sf::st_drop_geometry() %>%
     filter(NAME == state) %>% pull(STATEFP)
-  county_names <- counties_sf %>% sf::st_drop_geometry() %>%
-    filter(STATEFP == state_fips) %>% pull(NAME)
-  expand.grid(state = state, county = county_names,
-              stringsAsFactors = FALSE)
+  counties_tbl <- counties_sf %>% sf::st_drop_geometry() %>%
+    filter(STATEFP == state_fips) %>% select(NAME, COUNTYFP)
+  data.frame(state    = state,
+             county   = counties_tbl$NAME,
+             countyfp = counties_tbl$COUNTYFP,
+             stringsAsFactors = FALSE)
 }))
 
 source("/softs/R/createCluster.R")
@@ -358,14 +365,15 @@ cl <- createCluster()
 clusterExport(cl, c("states_sf", "counties_sf", "TARGET_YEARS",
                     "run_county", "make_union_mask", "make_mask",
                     "classify_year", "clipped_path", "classified_path",
-                    "ag_codes", "reclass_table"))
+                    "ag_codes", "reclass_table", "make_county_s", "tasks"))
 
 parLapply(cl, seq_len(nrow(tasks)), function(i) {
   library(terra)
   library(dplyr)
-  state  <- tasks$state[i]
-  county <- tasks$county[i]
-  run_county(state, county, TARGET_YEARS)
+  state    <- tasks$state[i]
+  county   <- tasks$county[i]
+  countyfp <- tasks$countyfp[i]
+  run_county(state, county, countyfp, TARGET_YEARS)
 })
 
 stopCluster(cl)

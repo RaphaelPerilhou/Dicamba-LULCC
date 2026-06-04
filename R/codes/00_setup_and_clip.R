@@ -47,13 +47,15 @@ cat("Creating directory structure")
 
 created <- 0
 for (state in TARGET_STATES) {
-  state_fips   <- states_sf %>% sf::st_drop_geometry() %>% 
+  state_fips   <- states_sf %>% sf::st_drop_geometry() %>%
     filter(NAME == state) %>% pull(STATEFP)
-  county_names <- counties_sf %>% sf::st_drop_geometry() %>%
-    filter(STATEFP == state_fips) %>% pull(NAME)
+  counties_tbl <- counties_sf %>% sf::st_drop_geometry() %>%
+    filter(STATEFP == state_fips) %>% select(NAME, COUNTYFP)
   state_s <- gsub(" ", "_", state)
-  for (county in county_names) {
-    county_s <- gsub(" ", "_", county)
+  for (k in seq_len(nrow(counties_tbl))) {
+    county   <- counties_tbl$NAME[k]
+    countyfp <- counties_tbl$COUNTYFP[k]
+    county_s <- make_county_s(county, countyfp)
     dirs <- c(
       file.path("data/clipped",        state_s, county_s),
       file.path("outputs/classified",  state_s, county_s),
@@ -79,6 +81,13 @@ cat("Checking CDL files:")
 
 get_cdl_path <- function(year) {
   paste0("data/", year, "_30m_cdls/", year, "_30m_cdls.tif")
+}
+
+# Independent cities (COUNTYFP >= 500) share NAME with a nearby county.
+# Append _City to the folder/file token to keep paths distinct.
+make_county_s <- function(county_name, countyfp) {
+  s <- gsub(" ", "_", county_name)
+  if (as.numeric(countyfp) >= 500) paste0(s, "_City") else s
 }
 
 missing_files <- c()
@@ -120,10 +129,10 @@ for (i in seq_along(rasters)[-1]) {
 
 # 5/ CLIP FUNCTION
 
-clip_county <- function(year, state_name, county_name, counties_sf) {
+clip_county <- function(year, state_name, county_name, countyfp, counties_sf) {
 
   state_s  <- gsub(" ", "_", state_name)
-  county_s <- gsub(" ", "_", county_name)
+  county_s <- make_county_s(county_name, countyfp)
   out_path <- file.path("data/clipped", state_s, county_s,
                         paste0("CDL_", year, "_", county_s, ".tif"))
 
@@ -133,10 +142,10 @@ clip_county <- function(year, state_name, county_name, counties_sf) {
   }
 
   cdl          <- rast(get_cdl_path(year))
-  county_vect  <- counties_sf %>% filter(NAME == county_name) %>% vect()
+  county_vect  <- counties_sf %>% filter(NAME == county_name, COUNTYFP == countyfp) %>% vect()
   county_proj  <- project(county_vect, crs(cdl))
   clipped      <- crop(cdl, county_proj) %>% mask(county_proj, touches = FALSE)
-  
+
   writeRaster(clipped, out_path, overwrite = TRUE, datatype = "INT1U")
   cat("  Saved:", out_path, "\n")
   return(out_path)
@@ -164,10 +173,12 @@ library(parallel)
 tasks <- do.call(rbind, lapply(TARGET_STATES, function(state) {
   state_fips   <- states_sf %>% sf::st_drop_geometry() %>%
     filter(NAME == state) %>% pull(STATEFP)
-  county_names <- counties_sf %>% sf::st_drop_geometry() %>%
-    filter(STATEFP == state_fips) %>% pull(NAME)
-  expand.grid(state = state, county = county_names,
-              stringsAsFactors = FALSE)
+  counties_tbl <- counties_sf %>% sf::st_drop_geometry() %>%
+    filter(STATEFP == state_fips) %>% select(NAME, COUNTYFP)
+  data.frame(state    = state,
+             county   = counties_tbl$NAME,
+             countyfp = counties_tbl$COUNTYFP,
+             stringsAsFactors = FALSE)
 }))
 
 # ANUBIS cluster setup
@@ -176,19 +187,20 @@ cl <- createCluster()
 
 # Export necessary objects to all workers
 clusterExport(cl, c("states_sf", "counties_sf", "TARGET_YEARS",
-                    "clip_county", "get_cdl_path"))
+                    "clip_county", "get_cdl_path", "make_county_s", "tasks"))
 
 # Run clipping in parallel across all state/county pairs
 parLapply(cl, seq_len(nrow(tasks)), function(i) {
   library(terra)
   library(dplyr)
-  state  <- tasks$state[i]
-  county <- tasks$county[i]
+  state    <- tasks$state[i]
+  county   <- tasks$county[i]
+  countyfp <- tasks$countyfp[i]
   state_fips     <- states_sf %>% sf::st_drop_geometry() %>%
     filter(NAME == state) %>% pull(STATEFP)
   counties_state <- counties_sf %>% filter(STATEFP == state_fips)
   for (year in TARGET_YEARS) {
-    clip_county(year, state, county, counties_state)
+    clip_county(year, state, county, countyfp, counties_state)
   }
 })
 
