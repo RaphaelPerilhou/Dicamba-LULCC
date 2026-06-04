@@ -15,19 +15,20 @@ mem.maxVSize(vsize = 64000)  # In MB, so 32000 = 32GB
                              # To avoid Error: vector memory limit of 16.0 Gb reached,
                              # see mem.maxVSize()
 rm(list = ls())
+setwd("/users/rperilhou/RA_Dicamba")
 
 library(terra)
-library(tigris)
 library(dplyr)
 ################################################################################
 # CONFIGURATION
 ################################################################################
-states_sf <- states(year = 2016, cb = TRUE)
+states_sf   <- readRDS("data/SF/states_2016.rds")
+counties_sf <- readRDS("data/SF/counties_2016.rds")
 
 # All 48 contiguous states
 contiguous_states <- states_sf %>%
-  filter(!STATEFP %in% c("02", "15",  # Alaska, Hawaii
-                         "60", "66", "69", "72", "78")) %>%  # territories
+  sf::st_drop_geometry() %>%
+  filter(!STATEFP %in% c("02", "15", "60", "66", "69", "72", "78")) %>%
   pull(NAME) %>%
   sort()
 
@@ -336,21 +337,38 @@ run_county <- function(state, county, years) {
 }
 ################################################################################
 # 4. RUN
-# For parallelisation on TSE, replace lapply with mclapply:
-#   library(parallel)
-#   mclapply(TARGET_STATES, run_state, years = TARGET_YEARS, mc.cores = N)
 ################################################################################
 cat("States:", paste(TARGET_STATES, collapse = ", "), "\n")
 cat("Years: ", paste(TARGET_YEARS,  collapse = ", "), "\n")
 
-for (state in TARGET_STATES) {
-  counties_sf <- counties(state = state, year = 2016, cb = TRUE)
-  county_names <- counties_sf %>% pull(NAME)
-  for (county in county_names) {
-    run_county(state, county, TARGET_YEARS)
-  }
-}
+library(parallel)
 
+tasks <- do.call(rbind, lapply(TARGET_STATES, function(state) {
+  state_fips   <- states_sf %>% sf::st_drop_geometry() %>%
+    filter(NAME == state) %>% pull(STATEFP)
+  county_names <- counties_sf %>% sf::st_drop_geometry() %>%
+    filter(STATEFP == state_fips) %>% pull(NAME)
+  expand.grid(state = state, county = county_names,
+              stringsAsFactors = FALSE)
+}))
+
+source("/softs/R/createCluster.R")
+cl <- createCluster()
+
+clusterExport(cl, c("states_sf", "counties_sf", "TARGET_YEARS",
+                    "run_county", "make_union_mask", "make_mask",
+                    "classify_year", "clipped_path", "classified_path",
+                    "ag_codes", "reclass_table"))
+
+parLapply(cl, seq_len(nrow(tasks)), function(i) {
+  library(terra)
+  library(dplyr)
+  state  <- tasks$state[i]
+  county <- tasks$county[i]
+  run_county(state, county, TARGET_YEARS)
+})
+
+stopCluster(cl)
 cat("ALL DONE: Classified files saved in outputs/classified/")
 
 ################################################################################
