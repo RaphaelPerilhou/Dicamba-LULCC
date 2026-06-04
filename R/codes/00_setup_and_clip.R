@@ -135,8 +135,8 @@ clip_county <- function(year, state_name, county_name, counties_sf) {
   cdl          <- rast(get_cdl_path(year))
   county_vect  <- counties_sf %>% filter(NAME == county_name) %>% vect()
   county_proj  <- project(county_vect, crs(cdl))
-  clipped      <- crop(cdl, county_proj) %>% mask(county_proj)
-
+  clipped      <- crop(cdl, county_proj) %>% mask(county_proj, touches = FALSE)
+  
   writeRaster(clipped, out_path, overwrite = TRUE, datatype = "INT1U")
   cat("  Saved:", out_path, "\n")
   return(out_path)
