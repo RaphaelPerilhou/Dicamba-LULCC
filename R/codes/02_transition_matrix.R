@@ -10,21 +10,22 @@
 ################################################################################
 
 rm(list = ls())
+setwd("/users/rperilhou/RA_Dicamba")
 
 library(terra)
 library(dplyr)
 library(tidyr)
 library(readr)
-library(tigris)
 ################################################################################
 # CONFIGURATION
 ################################################################################
-states_sf <- states(year = 2016, cb = TRUE)
+states_sf   <- readRDS("data/SF/states_2016.rds")
+counties_sf <- readRDS("data/SF/counties_2016.rds")
 
 # All 48 contiguous states
 contiguous_states <- states_sf %>%
-  filter(!STATEFP %in% c("02", "15",  # Alaska, Hawaii
-                         "60", "66", "69", "72", "78")) %>%  # territories
+  sf::st_drop_geometry() %>%
+  filter(!STATEFP %in% c("02", "15", "60", "66", "69", "72", "78")) %>%
   pull(NAME) %>%
   sort()
 
@@ -124,32 +125,39 @@ compute_transition <- function(year_from, year_to, state, county, force = FALSE)
 }
 
 # RUN
-# For parallelisation on TSE replace lapply with:
-#   library(parallel)
-#   mclapply(TARGET_STATES, function(state) {
-#     lapply(seq_len(length(TARGET_YEARS) - 1), function(i)
-#       compute_transition(TARGET_YEARS[i], TARGET_YEARS[i+1], state))
-#   }, mc.cores = N)
-
 cat("Starting transition matrix pipeline...\n")
 cat("States:", paste(TARGET_STATES, collapse = ", "), "\n")
 cat("Years: ", paste(TARGET_YEARS,  collapse = ", "), "\n\n")
 
-for (state in TARGET_STATES) {
-  counties_sf <- counties(state = state, year = 2016, cb = TRUE)
-  county_names <- counties_sf %>% pull(NAME)
-  for (county in county_names) {
-    cat("##########################################\n")
-    cat("State:", state, "| County:", county, "| Years:", min(TARGET_YEARS), "-", max(TARGET_YEARS),"\n")
-    cat("##########################################\n")
-    for (i in seq_len(length(TARGET_YEARS) - 1)) {
-      cat("  - Year pair:", TARGET_YEARS[i], "->", TARGET_YEARS[i+1])
-      compute_transition(TARGET_YEARS[i], TARGET_YEARS[i+1], state, county)
-    }
-    cat("County", county, "complete.")
-  }
-}
+library(parallel)
 
+tasks <- do.call(rbind, lapply(TARGET_STATES, function(state) {
+  state_fips   <- states_sf %>% sf::st_drop_geometry() %>%
+    filter(NAME == state) %>% pull(STATEFP)
+  county_names <- counties_sf %>% sf::st_drop_geometry() %>%
+    filter(STATEFP == state_fips) %>% pull(NAME)
+  expand.grid(state = state, county = county_names,
+              stringsAsFactors = FALSE)
+}))
+
+source("/softs/R/createCluster.R")
+cl <- createCluster()
+
+clusterExport(cl, c("states_sf", "counties_sf", "TARGET_YEARS",
+                    "compute_transition", "classified_path", "transition_path",
+                    "category_labels"))
+
+parLapply(cl, seq_len(nrow(tasks)), function(i) {
+  library(terra)
+  library(dplyr)
+  state  <- tasks$state[i]
+  county <- tasks$county[i]
+  for (j in seq_len(length(TARGET_YEARS) - 1)) {
+    compute_transition(TARGET_YEARS[j], TARGET_YEARS[j+1], state, county)
+  }
+})
+
+stopCluster(cl)
 cat("ALL DONE: Transition matrices saved in outputs/transitions/")
 
 
