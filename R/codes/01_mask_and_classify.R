@@ -271,10 +271,10 @@ classify_year <- function(year, state, county, countyfp, union_mask) {
   
   # Save counts to summary CSV
   summary_path <- "outputs/classification_summary.csv"
-  
+
   counts_row <- data.frame(
     state    = state,
-    county   = county,
+    county   = make_county_s(county, countyfp),
     year     = year,
     NonCrop  = sum(values_classified == 0, na.rm = TRUE),
     GM       = sum(values_classified == 1, na.rm = TRUE),
