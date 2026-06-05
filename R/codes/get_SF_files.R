@@ -7,15 +7,10 @@ states_sf <- states(year = 2016, cb = TRUE)
 
 # Download all county boundaries at once
 counties_sf <- counties(year = 2016, cb = TRUE)
-# LSAD = "25" identifies independent cities (city suffix) in the counties shapefile.
+# LSAD = "25" identifies independent cities in the counties shapefile.
 # Source: https://www.census.gov/library/reference/code-lists/legal-status-codes.html
-
-counties_sf <- counties_sf %>%
-  mutate(NAME = ifelse(
-    LSAD == "25",
-    paste0(gsub(" ", "_", NAME), "_City"),
-    gsub(" ", "_", NAME)
-  ))
+# County NAME is kept as-is (raw Census NAME). GEOID is used as the unique
+# identifier throughout the pipeline — no name manipulation needed.
 
 # Save both
 

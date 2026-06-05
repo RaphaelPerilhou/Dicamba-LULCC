@@ -1,11 +1,12 @@
 ##############################################################################
 # 00_setup_and_clip.R
-# Step 1: Create directory structure
-# Step 2: Verify CDL files exist + Projection is correct.
-# Step 3: Clip national CDL to each state
+# Step 1: Export county lookup table
+# Step 2: Create directory structure
+# Step 3: Verify CDL files exist + Projection is correct.
+# Step 4: Clip national CDL to each county
 #
 # Run this script first before anything else.
-# Later on TSE server: change states and years arguments only.
+# Later on TSE server: change TARGET_YEARS only.
 ##############################################################################
 setwd("/users/rperilhou/RA_Dicamba/")
 rm(list = ls())
@@ -14,61 +15,63 @@ library(terra)
 library(dplyr)
 
 # 1/ LOAD OFFICIAL STATE BOUNDARIES FROM CENSUS
-# Independent cities are already handled in the RDS:
-# LSAD == "25" entries have "_City" appended to their NAME.
-# Source: https://www.census.gov/library/reference/code-lists/legal-status-codes.html
 
-cat("Loading state boundaries (from Census TIGER)")
-states_sf  <- readRDS("data/SF/states_2016.rds")
+cat("Loading state boundaries (from Census TIGER)\n")
+states_sf   <- readRDS("data/SF/states_2016.rds")
 counties_sf <- readRDS("data/SF/counties_2016.rds")
 
-# All contiguous states
-contiguous_states <- states_sf %>%
+# All 48 contiguous states (STATEFP codes)
+contiguous_statefps <- states_sf %>%
   sf::st_drop_geometry() %>%
   filter(!STATEFP %in% c("02", "15", "60", "66", "69", "72", "78")) %>%
-  pull(NAME) %>%
-  sort()
+  pull(STATEFP)
 
-cat("Contiguous states available:", length(contiguous_states), "\n")
+cat("Contiguous states:", length(contiguous_statefps), "\n")
 
-TARGET_STATES <- contiguous_states
-TARGET_YEARS  <- c(2009:2018)
+TARGET_STATEFPS <- contiguous_statefps
+TARGET_YEARS    <- c(2009:2018)
 
-cat("Running for:", paste(TARGET_STATES, collapse = ", "), "\n")
 cat("Running for years:", paste(TARGET_YEARS, collapse = ", "), "\n")
 
-# 2/ CREATE DIRECTORY STRUCTURE
+# 2/ EXPORT COUNTY LOOKUP TABLE
+# One-time reference for GEOID -> NAME mapping (for human inspection only;
+# the pipeline uses GEOID and STATEFP exclusively).
 
-cat("Creating directory structure")
+counties_sf %>%
+  sf::st_drop_geometry() %>%
+  filter(STATEFP %in% TARGET_STATEFPS) %>%
+  select(GEOID, STATEFP, COUNTYFP, NAME, LSAD) %>%
+  write.csv("data/county_lookup.csv", row.names = FALSE)
+
+cat("County lookup table saved to data/county_lookup.csv\n")
+
+# 3/ CREATE DIRECTORY STRUCTURE
+
+cat("Creating directory structure\n")
 
 created <- 0
-for (state in TARGET_STATES) {
-  state_fips   <- states_sf %>% sf::st_drop_geometry() %>%
-    filter(NAME == state) %>% pull(STATEFP)
-  county_names <- counties_sf %>% sf::st_drop_geometry() %>%
-    filter(STATEFP == state_fips) %>% pull(NAME)
-  state_s <- gsub(" ", "_", state)
-  for (county in county_names) {
-    county_s <- gsub(" ", "_", county)
-    dirs <- c(
-      file.path("data/clipped",        state_s, county_s),
-      file.path("outputs/classified",  state_s, county_s),
-      file.path("outputs/transitions", state_s, county_s)
-    )
-    for (d in dirs) {
-      if (!dir.exists(d)) {
-        dir.create(d, recursive = TRUE)
-        created <- created + 1
-      }
+for (statefp in TARGET_STATEFPS) {
+  dirs <- c(
+    file.path("data/clipped",        statefp),
+    file.path("outputs/classified",  statefp),
+    file.path("outputs/transitions", statefp)
+  )
+  for (d in dirs) {
+    if (!dir.exists(d)) {
+      dir.create(d, recursive = TRUE)
+      created <- created + 1
     }
   }
 }
 
 cat("Done:", created, "directories created.\n")
+# Does not overwrite so if there is any modification on the directory structure,
+# need to delete the folders and re-run.
 
-# 3/ VERIFY CDL FILES EXIST
+# 4/ VERIFY CDL FILES EXIST
+# Expected: data/<year>_30m_cdls/<year>_30m_cdls.tif
 
-cat("Checking CDL files:")
+cat("Checking CDL files:\n")
 
 get_cdl_path <- function(year) {
   paste0("data/", year, "_30m_cdls/", year, "_30m_cdls.tif")
@@ -90,10 +93,11 @@ if (length(missing_files) > 0) {
   stop("Missing CDL files. Please download the following before continuing:",
        paste(missing_files, collapse = "\n"))
 } else {
-  cat("All CDL files found.")
+  cat("All CDL files found.\n")
 }
 
-# 4/ VERIFY CRS
+# 5/ VERIFY the projection used matches the official CDL CRS
+# Can be found here: https://www.nass.usda.gov/Research_and_Science/Cropland/sarsfaqs2.php#common.2
 
 rasters <- lapply(TARGET_YEARS, function(y) rast(get_cdl_path(y)))
 
@@ -107,14 +111,15 @@ for (i in seq_along(rasters)[-1]) {
       "| ext:", ext(rasters[[1]]) == ext(rasters[[i]]), "\n")
 }
 
-# 5/ CLIP FUNCTION
+# 6/ CLIP FUNCTION
 
-clip_county <- function(year, state_name, county_name, counties_sf) {
+clipped_path <- function(year, geoid, statefp) {
+  file.path("data/clipped", statefp, paste0("CDL_", year, "_", geoid, ".tif"))
+}
 
-  state_s  <- gsub(" ", "_", state_name)
-  county_s <- gsub(" ", "_", county_name)
-  out_path <- file.path("data/clipped", state_s, county_s,
-                        paste0("CDL_", year, "_", county_s, ".tif"))
+clip_county <- function(year, geoid, statefp, counties_sf) {
+
+  out_path <- clipped_path(year, geoid, statefp)
 
   if (file.exists(out_path)) {
     cat("  Skipping (exists):", out_path, "\n")
@@ -122,7 +127,7 @@ clip_county <- function(year, state_name, county_name, counties_sf) {
   }
 
   cdl         <- rast(get_cdl_path(year))
-  county_vect <- counties_sf %>% filter(NAME == county_name) %>% vect()
+  county_vect <- counties_sf %>% filter(GEOID == geoid) %>% vect()
   county_proj <- project(county_vect, crs(cdl))
   clipped     <- crop(cdl, county_proj) %>% mask(county_proj, touches = FALSE)
 
@@ -131,36 +136,35 @@ clip_county <- function(year, state_name, county_name, counties_sf) {
   return(out_path)
 }
 
-# 6/ RUN CLIPPING
+# 7/ RUN CLIPPING
 library(parallel)
 
-tasks <- do.call(rbind, lapply(TARGET_STATES, function(state) {
-  state_fips   <- states_sf %>% sf::st_drop_geometry() %>%
-    filter(NAME == state) %>% pull(STATEFP)
-  county_names <- counties_sf %>% sf::st_drop_geometry() %>%
-    filter(STATEFP == state_fips) %>% pull(NAME)
-  expand.grid(state = state, county = county_names,
-              stringsAsFactors = FALSE)
-}))
+tasks <- counties_sf %>%
+  sf::st_drop_geometry() %>%
+  filter(STATEFP %in% TARGET_STATEFPS) %>%
+  select(GEOID, STATEFP)
 
+# ANUBIS cluster setup
 source("/softs/R/createCluster.R")
 cl <- createCluster()
 
-clusterExport(cl, c("states_sf", "counties_sf", "TARGET_YEARS",
-                    "clip_county", "get_cdl_path", "tasks"))
+# Export necessary objects to all workers
+clusterExport(cl, c("counties_sf", "TARGET_YEARS",
+                    "clip_county", "clipped_path", "get_cdl_path", "tasks"))
 
+# Run clipping in parallel across all counties
 parLapply(cl, seq_len(nrow(tasks)), function(i) {
   library(terra)
   library(dplyr)
-  state  <- tasks$state[i]
-  county <- tasks$county[i]
-  state_fips     <- states_sf %>% sf::st_drop_geometry() %>%
-    filter(NAME == state) %>% pull(STATEFP)
-  counties_state <- counties_sf %>% filter(STATEFP == state_fips)
+  geoid   <- tasks$GEOID[i]
+  statefp <- tasks$STATEFP[i]
   for (year in TARGET_YEARS) {
-    clip_county(year, state, county, counties_state)
+    clip_county(year, geoid, statefp, counties_sf)
   }
 })
 
 stopCluster(cl)
-cat("ALL DONE: Clipped files saved in data/clipped/")
+cat("ALL DONE: Clipped files saved in data/clipped/\n")
+
+# At this stage each folder data/clipped/<STATEFP>/ should contain a .tif per county per year,
+# named like: CDL_<year>_<GEOID>.tif.
