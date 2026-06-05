@@ -4,9 +4,15 @@
 
 This document specifies the folder structure, file naming conventions, and
 path function signatures used throughout the pipeline. The pipeline
-operates at **county level** nested within states. All code must follow
-these conventions exactly to ensure consistency between the three pipeline
-stages and future HPC adaptation.
+operates at **county level** identified by GEOID (5-digit Census FIPS code).
+All code must follow these conventions exactly to ensure consistency between
+the three pipeline stages and future HPC adaptation.
+
+Counties are identified by `GEOID` (e.g. `51059` for Fairfax County VA,
+`51600` for Fairfax City VA). This avoids all name-based collisions and
+eliminates string manipulation. A human-readable reference table is written
+once at the start of `00_setup_and_clip.R` to `data/county_lookup.csv`
+(columns: `GEOID`, `STATEFP`, `COUNTYFP`, `NAME`, `LSAD`).
 
 ---
 
@@ -18,29 +24,23 @@ The clipped inputs are stored as:
 ```
 data/
 └── clipped/
-    └── <State_Name>/
-        └── <County_Name>/
-            ├── CDL_2009_<County_Name>.tif
-            ├── CDL_2010_<County_Name>.tif
-            ├── ...
-            └── CDL_2018_<County_Name>.tif
+    └── <STATEFP>/
+        ├── CDL_2009_<GEOID>.tif
+        ├── CDL_2010_<GEOID>.tif
+        ├── ...
+        └── CDL_2018_<GEOID>.tif
 ```
 
 ### Naming conventions
-- State folders: state name with spaces replaced by underscores
-  (e.g. `New_York`, `Rhode_Island`)
-- County folders: county name with spaces replaced by underscores
-  (e.g. `Jefferson_County`, `St_Lawrence_County`)
-- File names: `CDL_<year>_<County_Name>.tif`
+- State folders: 2-digit STATEFP (e.g. `51`, `36`)
+- File names: `CDL_<year>_<GEOID>.tif`
 
 ### `clipped_path()` signature (defined in `00_setup_and_clip.R` and `01_mask_and_classify.R`)
 
 ```r
-clipped_path <- function(year, state, county) {
-  state_s  <- gsub(" ", "_", state)
-  county_s <- gsub(" ", "_", county)
-  file.path("data/clipped", state_s, county_s,
-            paste0("CDL_", year, "_", county_s, ".tif"))
+clipped_path <- function(year, geoid, statefp) {
+  file.path("data/clipped", statefp,
+            paste0("CDL_", year, "_", geoid, ".tif"))
 }
 ```
 
@@ -55,12 +55,11 @@ Output of `01_mask_and_classify.R`:
 ```
 outputs/
 └── classified/
-    └── <State_Name>/
-        └── <County_Name>/
-            ├── Classified_2009_<County_Name>.tif
-            ├── Classified_2010_<County_Name>.tif
-            ├── ...
-            └── Classified_2018_<County_Name>.tif
+    └── <STATEFP>/
+        ├── Classified_2009_<GEOID>.tif
+        ├── Classified_2010_<GEOID>.tif
+        ├── ...
+        └── Classified_2018_<GEOID>.tif
 ```
 
 ### Transition matrices
@@ -70,12 +69,11 @@ Output of `02_transition_matrix.R`:
 ```
 outputs/
 └── transitions/
-    └── <State_Name>/
-        └── <County_Name>/
-            ├── Transition_2009_2010_<County_Name>.csv
-            ├── Transition_2010_2011_<County_Name>.csv
-            ├── ...
-            └── Transition_2017_2018_<County_Name>.csv
+    └── <STATEFP>/
+        ├── TM_20092010_<GEOID>.csv
+        ├── TM_20102011_<GEOID>.csv
+        ├── ...
+        └── TM_20172018_<GEOID>.csv
 ```
 
 Each `.csv` is a **5×5 named matrix** (not a long/panel data.frame) with
@@ -96,28 +94,25 @@ Unclassified (99).
 
 ## Path Functions
 
-Each script defines its own path functions at the top. They all follow the same
-`(year, state, county)` signature and the same `gsub(" ", "_", ...)` convention.
+Each script defines its own path functions at the top. They all follow the
+`(year, geoid, statefp)` signature (or `(year_from, year_to, geoid, statefp)`
+for transitions). No string manipulation of names is performed anywhere.
 
 ### `classified_path()` (defined in `01_mask_and_classify.R` and `02_transition_matrix.R`)
 
 ```r
-classified_path <- function(year, state, county) {
-  state_s  <- gsub(" ", "_", state)
-  county_s <- gsub(" ", "_", county)
-  file.path("outputs/classified", state_s, county_s,
-            paste0("Classified_", year, "_", county_s, ".tif"))
+classified_path <- function(year, geoid, statefp) {
+  file.path("outputs/classified", statefp,
+            paste0("Classified_", year, "_", geoid, ".tif"))
 }
 ```
 
 ### `transition_path()` (defined in `02_transition_matrix.R`)
 
 ```r
-transition_path <- function(year_from, year_to, state, county) {
-  state_s  <- gsub(" ", "_", state)
-  county_s <- gsub(" ", "_", county)
-  file.path("outputs/transitions", state_s, county_s,
-            paste0("TM_", year_from, year_to, "_", county_s, ".csv"))
+transition_path <- function(year_from, year_to, geoid, statefp) {
+  file.path("outputs/transitions", statefp,
+            paste0("TM_", year_from, year_to, "_", geoid, ".csv"))
 }
 ```
 
@@ -140,25 +135,28 @@ Unclassified ...  ...       ...         ...           ...
 
 ---
 
-## What Has Changed vs. the Original State-Level Pipeline
+## What Has Changed
 
-| Aspect | Original (state) | New (county) |
-|--------|-----------------|--------------|
-| Path function args | `(year, state)` | `(year, state, county)` |
-| Main loop | over states | over states → counties |
-| Output nesting | `classified/<state>/` | `classified/<state>/<county>/` |
-| File naming | `Classified_<year>_<state>.tif` | `Classified_<year>_<county>.tif` |
-| Transition naming | `TM_<y1><y2>_<state>.csv` | `TM_<y1><y2>_<county>.csv` |
-| Union mask scope | per state | per county |
+| Aspect | State-level | County (name-based) | County (GEOID-based, current) |
+|--------|-------------|---------------------|-------------------------------|
+| Path function args | `(year, state)` | `(year, state, county)` | `(year, geoid, statefp)` |
+| Folder nesting | `classified/<state>/` | `classified/<state>/<county>/` | `classified/<statefp>/` |
+| File identifier | state name | county name | GEOID |
+| String manipulation | `gsub(" ", "_", state)` | `gsub(" ", "_", county)` | none |
+| Name collision risk | none | yes (e.g. Fairfax County vs Fairfax City) | none (GEOIDs are unique) |
+| Union mask scope | per state | per county | per county |
+| Human-readable reference | n/a | n/a | `data/county_lookup.csv` |
 
 ---
 
 ## Notes
 
 - County boundaries are sourced from `tigris::counties()` with
-  `year = 2016` to match the CDL study period.
-- The `gsub(" ", "_", ...)` convention is applied consistently to both
-  state and county names everywhere — in folder creation, file naming,
-  and result list naming.
-- For now all code runs locally. ANUBIS parallelisation will be added
-  later; the directory structure does not need to change for that.
+  `year = 2016` to match the CDL study period, pre-saved as
+  `data/SF/counties_2016.rds`.
+- `GEOID` is the 5-digit Census FIPS code: `STATEFP` (2 digits) +
+  `COUNTYFP` (3 digits). It uniquely identifies every county and
+  independent city in the US.
+- `data/county_lookup.csv` is written by `00_setup_and_clip.R` and is
+  the authoritative reference for mapping GEOIDs back to human-readable
+  names. It is never used in path construction.

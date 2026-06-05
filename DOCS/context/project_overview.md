@@ -71,18 +71,19 @@ See `docs/decisions/directory_structure.md` for the full specification.
 ```
 outputs/
 ├── classified/
-│   └── <state>/
-│       └── <county>/
-│           ├── Classified_2009_<county>.tif
-│           ├── ...
-│           └── Classified_2018_<county>.tif
+│   └── <STATEFP>/
+│       ├── Classified_2009_<GEOID>.tif
+│       ├── ...
+│       └── Classified_2018_<GEOID>.tif
 └── transitions/
-    └── <state>/
-        └── <county>/
-            ├── Transition_2009_2010_<county>.csv
-            ├── ...
-            └── Transition_2017_2018_<county>.csv
+    └── <STATEFP>/
+        ├── TM_20092010_<GEOID>.csv
+        ├── ...
+        └── TM_20172018_<GEOID>.csv
 ```
+
+A human-readable county reference is written once by `00_setup_and_clip.R`
+to `data/county_lookup.csv` (columns: `GEOID`, `STATEFP`, `COUNTYFP`, `NAME`, `LSAD`).
 
 ---
 
@@ -127,8 +128,10 @@ the planned approach is `mclapply` over states.
 ## Key Constraints for Code Development
 
 - **Do not assume HPC/SLURM configuration** — write for local execution
-- **County is the unit of analysis**, not state — `clipped_path()`, `classified_path()`,
-  and `transition_path()` all take `(year, state, county)` and must stay that way
+- **County is the unit of analysis**, identified by `GEOID` (5-digit Census FIPS)
+  — `clipped_path()`, `classified_path()`, and `transition_path()` all take
+  `(year, geoid, statefp)` and must stay that way
+- **Never use county or state NAME strings for paths** — use GEOID and STATEFP only
 - **Transition matrices must be saved as named matrices** (5×5 `.csv`),
   not long/panel format
 - **Classification must match `docs/decisions/classification.md` exactly**
