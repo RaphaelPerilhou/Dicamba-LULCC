@@ -32,15 +32,25 @@ bias <- classification_summary %>%
   filter(!GEOID %in% missing_geoid) %>% 
   left_join(census_acres, by = c("GEOID", "Category Code", "Category")) %>%
   mutate(delta_acres = acres_cdl - acres_census,
-         delta_pct = ifelse(acres_cdl == 0 & acres_census == 0, 0, (acres_cdl-acres_census)/acres_census)
+         delta_pct_census = case_when(
+           acres_census == 0 & acres_cdl == 0 ~ 0,        # both zero
+           acres_census == 0 & acres_cdl != 0 ~ NA_real_, # only census zero
+           TRUE                                ~ (acres_cdl - acres_census) / acres_census
+         ),
+         delta_pct_CDL = case_when(
+           acres_census == 0 & acres_cdl == 0 ~ 0,        # both zero
+           acres_census != 0 & acres_cdl == 0 ~ NA_real_, # only CDL zero
+           TRUE                                ~ (acres_cdl - acres_census) / acres_cdl
          )
-sum(is.na(bias$delta_pct))
+         )
+sum(is.na(bias$delta_pct_census))
+sum(is.na(bias$delta_pct_CDL))
 sum(is.na(bias$delta_acres))
-sum(is.infinite(bias$delta_pct)) # value = 0 for census result in many Inf Values. (Division by 0)
+sum(bias$acres_cdl==0)
+sum(is.infinite(bias$delta_pct_census)) # value = 0 for census result in many Inf Values. (Division by 0)
 #Just to get a magnitude intuition.
 #But our measure value will be (delta_baseline - delta_model)/delta_baseline
 # with delta_baseline =  the delta_acres we just computed on this script without any reclassification)
 
 #save output
 write_csv(bias, "outputs/baseline_bias.csv")
-
