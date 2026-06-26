@@ -22,11 +22,18 @@ After initial building of the logic on GEE, the pipeline has been moved mainly i
 
 | Step | Script | Status |
 |---|---|---|
-| Clip national CDL to states | `R/00_setup_and_clip.R` | tested on 2 states for the 2009–2011 period |
-| Mask + classify pixels | `R/01_mask_and_classify.R` | draft finished but improvement needed |
-| Transition matrices | `R/02_transition_matrix.R` | draft finished but imrpovement needed |
-| Scale up to 48 states | wait for ANUBIS | pending |
-| Statistical analysis | TBD | pending |
+| Download Census shapefiles | `R/codes/000_get_SF_files.R` | done |
+| Clip national CDL to counties | `R/codes/00_setup_and_clip.R` | tested on 2 states for the 2009–2011 period |
+| Mask + classify pixels | `R/codes/01_mask_and_classify.R` | draft finished but improvement needed |
+| Transition matrices | `R/codes/02_transition_matrix.R` | draft finished but improvement needed |
+| Merge & align national confidence raster | `R/codes/03_confidence_NAT.R` | done for 2012 |
+| Clip national confidence to counties | `R/codes/04_clip_confidence.R` | done for 2012 |
+| Check Census of Agriculture availability | `R/codes/05_availability_census.R` | done for 2012 |
+| Compute Census acres by category | `R/codes/06_census_acres.R` | done for 2012 |
+| Compute baseline bias (CDL vs Census) | `R/codes/07_bias_measure.R` | done for 2012 |
+| Compute baseline confidence quality index | `R/codes/08_confidence_baseline.R` | done for 2012 |
+| Scale up to 48 states / all years | — | pending |
+| Statistical analysis / reclassification model | — | pending |
 
 ## Key Links
 
